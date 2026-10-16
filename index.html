@@ -222,15 +222,26 @@ function say(html) {
   const f = VMAP && VMAP[vkey(t)];
   if (f) { try { speechSynthesis.cancel(); } catch (e) {} vplay('voice/' + f); return; }
   if (STAFF) console.log('[voice] 音声ファイルなし：' + t);
-  if (!window.speechSynthesis) return;
+  tts(t);
+}
+function tts(t) {   // 端末の声で読む
+  if (!window.speechSynthesis || !t) return;
   VA.pause();
   try { speechSynthesis.cancel(); const x = new SpeechSynthesisUtterance(t); x.lang = 'ja-JP'; x.rate = 1.1;
     jaV = jaV || speechSynthesis.getVoices().find(v => /^ja/i.test(v.lang)); if (jaV) x.voice = jaV; speechSynthesis.speak(x); } catch (e) {}
 }
+VA.addEventListener('error', () => { if (VOICE && said && !/unlock/.test(VA.src)) tts(said); });   // 音声ファイルが読めなかったときは、黙らずに端末の声で読む
 // スマホは、押した瞬間の外で鳴らそうとすると断られることがある。鳴らせなかった文は次にさわったときに鳴らす
 let AC = null;
+// マナーモードでも鳴らす（iPhone は既定だと Web Audio の「ピッ」が消音スイッチで消える。iOS 17 以降の Safari が持つ設定）
+try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+function acUnlock() {   // 「ピッ」の音の部品は、さわった瞬間の中で作って起こしておく（後で作ると iPhone では鳴らない）
+  try { const A = window.AudioContext || window.webkitAudioContext; if (!A) return; AC = AC || new A(); if (AC.state !== 'running') AC.resume();
+    const b = AC.createBuffer(1, 1, 22050), s = AC.createBufferSource(); s.buffer = b; s.connect(AC.destination); s.start(0); } catch (e) {}
+  try { if (!acUnlock.tts && window.speechSynthesis) { acUnlock.tts = 1; speechSynthesis.speak(new SpeechSynthesisUtterance(' ')); } } catch (e) {}   // 端末の声も、最初はさわった瞬間に起こす
+}
 ['pointerdown', 'touchend', 'click'].forEach(k => addEventListener(k, () => {
-  try { if (AC && AC.state !== 'running') AC.resume(); } catch (e) {}
+  acUnlock();
   if (vPend && VOICE) { const s = vPend; vPend = null; VA.src = s; VA.play().catch(() => {}); }
 }, true));
 function beep(f = 660, ms = 80) {   // 1回おわりの合図
