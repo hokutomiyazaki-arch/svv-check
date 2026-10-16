@@ -211,11 +211,26 @@ let tok = 0, RUN = null, TRAIN = false;
 let VOICE = localStorage.getItem('fntVoice') !== 'off', said = '', jaV = null, VMAP = null;
 const VA = new Audio();
 const vkey = t => t.replace(/[\s。]/g, '');
-fetch('voice/index.json', { cache: 'no-cache' }).then(r => r.json()).then(m => { VMAP = m; }).catch(() => {});
+fetch('voice/index.json', { cache: 'no-cache' }).then(r => r.json()).then(m => { VMAP = m; preload(); }).catch(() => {});
+// 音声は Web Audio で鳴らす（2026-10-16 宮崎さん「Android で開いたんだけれども、音鳴らないよ。音声の案内も何もない」）。
+// <audio> は、さわった直後でないと鳴らさない端末がある（カメラでチェックはカメラを使っている間は許されるので鳴っていた。こちらはカメラを使わない）。
+// Web Audio は、さわった瞬間に一度起こせば、あとはいつでも鳴る。音声は前もって全部読み込んでおく。起きていないときだけ <audio> に落とす
+const BUF = {}; let SRC = null;
+function preload() {
+  if (!AC || !VMAP) return;
+  for (const f of new Set(Object.values(VMAP))) if (!BUF[f]) { BUF[f] = 'loading';
+    fetch('voice/' + f).then(r => r.arrayBuffer()).then(a => new Promise((ok, ng) => AC.decodeAudioData(a, ok, ng))).then(b => { BUF[f] = b; }).catch(() => { delete BUF[f]; }); }
+}
+function vstop() { try { SRC && SRC.stop(); } catch (e) {} SRC = null; VA.pause(); }
 const toSpeech = html => { const d = document.createElement('div'); d.innerHTML = String(html).replace(/<br\s*\/?>/g, '。').replace(/<small>/g, '。');
   return d.textContent.replace(/\s+/g, ' ').replace(/。+/g, '。').replace(/^。|。$/g, '').trim(); };
 let vPend = null;
-function vplay(src) { vPend = null; VA.pause(); VA.muted = false; VA.src = src; VA.play().catch(e => { if (e && e.name === 'NotAllowedError') vPend = src; }); }
+function vplay(src) {
+  vPend = null; vstop();
+  const b = BUF[src.replace('voice/', '')];
+  if (AC && AC.state === 'running' && b && b !== 'loading') { try { SRC = AC.createBufferSource(); SRC.buffer = b; SRC.connect(AC.destination); SRC.start(0); return; } catch (e) {} }
+  VA.muted = false; VA.src = src; VA.play().catch(e => { if (e && e.name === 'NotAllowedError') vPend = src; });
+}
 function say(html) {
   const t = html ? toSpeech(html) : ''; if (!t || t === said) return; said = t;
   if (!VOICE) return;
@@ -226,7 +241,7 @@ function say(html) {
 }
 function tts(t) {   // 端末の声で読む
   if (!window.speechSynthesis || !t) return;
-  VA.pause();
+  vstop();
   try { speechSynthesis.cancel(); const x = new SpeechSynthesisUtterance(t); x.lang = 'ja-JP'; x.rate = 1.1;
     jaV = jaV || speechSynthesis.getVoices().find(v => /^ja/i.test(v.lang)); if (jaV) x.voice = jaV; speechSynthesis.speak(x); } catch (e) {}
 }
@@ -237,7 +252,7 @@ let AC = null;
 try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
 function acUnlock() {   // 「ピッ」の音の部品は、さわった瞬間の中で作って起こしておく（後で作ると iPhone では鳴らない）
   try { const A = window.AudioContext || window.webkitAudioContext; if (!A) return; AC = AC || new A(); if (AC.state !== 'running') AC.resume();
-    const b = AC.createBuffer(1, 1, 22050), s = AC.createBufferSource(); s.buffer = b; s.connect(AC.destination); s.start(0); } catch (e) {}
+    const b = AC.createBuffer(1, 1, 22050), s = AC.createBufferSource(); s.buffer = b; s.connect(AC.destination); s.start(0); preload(); } catch (e) {}
   try { if (!acUnlock.tts && window.speechSynthesis) { acUnlock.tts = 1; speechSynthesis.speak(new SpeechSynthesisUtterance(' ')); } } catch (e) {}   // 端末の声も、最初はさわった瞬間に起こす
 }
 ['pointerdown', 'touchend', 'click'].forEach(k => addEventListener(k, () => {
@@ -249,7 +264,7 @@ function beep(f = 660, ms = 80) {   // 1回おわりの合図
     o.frequency.value = f; g.gain.value = 0.2; o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime + ms / 1000); } catch (e) {}
 }
 function muteUI() { for (const id of ['muteSplash', 'muteSide']) { const b = $(id); b.textContent = VOICE ? '🔊 音声オン' : '🔇 音声オフ'; b.classList.toggle('off', !VOICE); } }
-function toggleVoice(e) { e.stopPropagation(); VOICE = !VOICE; localStorage.setItem('fntVoice', VOICE ? 'on' : 'off'); muteUI(); if (!VOICE) { try { speechSynthesis.cancel(); } catch (_) {} VA.pause(); } }
+function toggleVoice(e) { e.stopPropagation(); VOICE = !VOICE; localStorage.setItem('fntVoice', VOICE ? 'on' : 'off'); muteUI(); if (!VOICE) { try { speechSynthesis.cancel(); } catch (_) {} vstop(); } }
 $('muteSplash').onclick = toggleVoice; $('muteSide').onclick = toggleVoice; muteUI();
 
 // ── スマホの傾き（加速度の重力の向き）。iPhone は押したボタンの中で許可を取る
