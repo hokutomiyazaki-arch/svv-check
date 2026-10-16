@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b1a20" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="線をまっすぐ" />
+<meta name="description" content="暗い画面の赤い線を、スマホを傾けて「まっすぐ縦」「まっすぐ横」に合わせるチェック（SVV・SVH）。Functional Neuro Training。" />
+<title>線をまっすぐ（SVV・SVH） / Functional Neuro Training</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap" rel="stylesheet" />
+<style>
+  /* 配色・骨格は pinto-8（FNT 標準）に合わせる */
+  :root{ --bg0:#0b1a20; --bg1:#123138; --bg2:#16414a; --accent:#7fe0cd; --accent2:#3fa895; --accentInk:#06231d;
+    --ink:#f2faf7; --muted:#a8c6bf; --line:rgba(255,255,255,.12); --card:rgba(255,255,255,.07); --danger:#ffb4a8; }
+  *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  html,body{ overflow-x:hidden; max-width:100%; }
+  body{ font-family:"M PLUS Rounded 1c", system-ui, sans-serif; font-weight:700; color:var(--ink); line-height:1.7;
+    background:radial-gradient(120% 90% at 50% 6%, var(--bg2) 0%, var(--bg1) 44%, var(--bg0) 100%); background-attachment:fixed;
+    min-height:100vh; min-height:100dvh;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  body.playing{ overflow:hidden; touch-action:none; }
+  button{ font-family:inherit; font-weight:700; cursor:pointer; border:none; }
+  a{ color:var(--accent); }
+  :focus-visible{ outline:3px solid var(--accent); outline-offset:3px; border-radius:8px; }
+
+  #splash{ position:fixed; inset:0; z-index:1000; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:32px;
+    background:radial-gradient(120% 90% at 50% 20%, var(--bg2) 0%, var(--bg1) 45%, var(--bg0) 100%); transition:opacity .45s ease, visibility .45s ease; }
+  #splash.hide{ opacity:0; visibility:hidden; pointer-events:none; }
+  #splash img{ width:132px; height:132px; margin-bottom:22px; border-radius:26px; }
+  #splash .fnt{ font-size:13px; letter-spacing:.24em; color:var(--muted); margin-bottom:14px; }
+  #splash h1{ font-size:30px; font-weight:800; color:var(--accent); margin-bottom:10px; }
+  #splash .lead{ font-size:14px; color:var(--muted); margin-bottom:30px; }
+  #splash .tapstart{ min-height:52px; padding:14px 34px; border-radius:16px; font-size:17px; font-weight:800; color:var(--accentInk);
+    background:linear-gradient(180deg,var(--accent),var(--accent2)); animation:breathe 2.4s ease-in-out infinite; }
+  #splash .copy{ position:absolute; bottom:calc(20px + env(safe-area-inset-bottom)); font-size:11px; color:var(--muted); }
+  @keyframes breathe{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.05); } }
+  .muteToggle{ margin-top:22px; min-height:40px; padding:8px 20px; border-radius:14px; font-size:13px; color:var(--accent); background:var(--card); border:1px solid var(--line); }
+  .muteToggle.off{ color:var(--muted); }
+
+  .app{ width:100%; max-width:480px; margin:0 auto; min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; }
+  header{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px 4px; }
+  .logo{ display:flex; align-items:center; gap:10px; }
+  .logo img{ width:34px; height:34px; }
+  .logo b{ font-size:15px; font-weight:800; }
+  .staffTag{ font-size:11px; color:var(--accentInk); background:var(--accent); border-radius:8px; padding:1px 8px; margin-left:4px; }
+  .menuBtn{ width:46px; height:46px; border-radius:12px; background:var(--card); color:var(--ink); font-size:22px; }
+  main{ flex:1; display:flex; flex-direction:column; padding:8px 20px 4px; }
+  .screen{ display:none; flex-direction:column; }
+  .screen.active{ display:flex; }
+  .step-label{ font-size:12px; letter-spacing:.16em; color:var(--accent); margin-bottom:8px; }
+  h2{ font-size:23px; font-weight:800; line-height:1.5; margin-bottom:14px; }
+  .setupList{ list-style:none; margin:10px 0 18px; display:flex; flex-direction:column; gap:12px; }
+  .setupList li{ display:flex; gap:12px; align-items:flex-start; padding:14px 16px; border-radius:14px; background:var(--card); border:1px solid var(--line); font-size:15px; }
+  .setupList .no{ flex:none; width:26px; height:26px; border-radius:50%; background:var(--accent); color:var(--accentInk); font-weight:800; font-size:14px; display:flex; align-items:center; justify-content:center; }
+  .btn{ width:100%; min-height:56px; border-radius:16px; font-size:18px; font-weight:800; color:var(--accentInk); background:linear-gradient(180deg,var(--accent),var(--accent2)); margin-top:10px; }
+  .btn.sub{ background:var(--card); color:var(--ink); border:1px solid var(--line); font-size:16px; min-height:50px; }
+  .msg{ margin:12px 0; padding:14px 16px; border-radius:14px; background:rgba(255,180,168,.12); border:1px solid var(--danger); font-size:15px; display:none; }
+  .msg.show{ display:block; }
+  .res{ margin:10px 0; padding:14px 16px; border-radius:14px; background:var(--card); border:1px solid var(--line); font-size:15px; line-height:1.8; }
+  .res.judge{ border-color:var(--accent2); }
+  .small{ font-size:12px; color:var(--muted); font-weight:500; line-height:1.7; display:inline-block; margin-top:6px; }
+  .done{ font-size:22px; font-weight:800; text-align:center; margin:30px 0 10px; }
+  textarea{ width:100%; height:120px; margin-top:8px; border-radius:12px; background:#0006; color:var(--ink); border:1px solid var(--line); padding:10px; font-size:12px; font-family:ui-monospace,monospace; }
+
+  /* 測る画面：真っ黒に赤い線だけ（周りの縦横の手がかりを減らす） */
+  #svv{ position:fixed; inset:0; display:none; z-index:300; background:#000; }
+  #svv canvas{ position:absolute; inset:0; width:100%; height:100%; }
+  #svvMsg{ position:absolute; left:50%; top:18%; transform:translateX(-50%); width:min(92vw,520px); text-align:center; font-weight:800; font-size:clamp(22px,6vw,30px); line-height:1.45; color:#ddd; }
+  #svvMsg small{ display:block; font-size:15px; font-weight:600; color:#999; margin-top:6px; }
+  #svvStop{ position:absolute; right:calc(14px + env(safe-area-inset-right)); bottom:calc(14px + env(safe-area-inset-bottom)); padding:8px 14px; border-radius:10px; background:#111; color:#555; font-size:13px; border:1px solid #222; }
+
+  footer{ padding:20px 20px calc(20px + env(safe-area-inset-bottom)); text-align:center; }
+  .med{ font-size:11.5px; color:var(--muted); line-height:1.75; }
+  .fnt-copy{ display:block; margin-top:14px; font-size:11px; letter-spacing:.14em; color:var(--muted); opacity:.8; }
+
+  .overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); opacity:0; visibility:hidden; transition:opacity .3s ease, visibility .3s ease; z-index:80; }
+  .overlay.open{ opacity:1; visibility:visible; }
+  .side{ position:fixed; top:0; right:0; height:100%; width:min(84%,340px); z-index:90; background:var(--bg1); border-left:1px solid var(--line);
+    transform:translateX(100%); transition:transform .3s ease; display:flex; flex-direction:column;
+    padding:calc(16px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom)); overflow-y:auto; }
+  .side.open{ transform:translateX(0); }
+  .side .top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+  .side .top b{ font-size:16px; font-weight:800; }
+  .side .closeBtn{ width:44px; height:44px; border-radius:12px; background:var(--card); color:var(--ink); font-size:20px; }
+  .side h4{ font-size:12px; letter-spacing:.14em; color:var(--accent); margin:18px 0 10px; }
+  .side .box{ font-size:13px; color:var(--muted); line-height:1.95; }
+  .side .box ol{ padding-left:20px; }
+  .side .sideBtn{ width:100%; min-height:46px; border-radius:12px; background:var(--card); color:var(--ink); border:1px solid var(--line); font-size:14px; margin-top:8px; }
+  .side .learn{ margin-top:auto; padding-top:22px; }
+  .side .learn a{ font-size:14px; text-decoration:none; display:block; padding:12px 0; }
+  .side .side-copy{ font-size:10.5px; letter-spacing:.1em; color:var(--muted); opacity:.7; margin-top:14px; display:block; }
+  .hide{ display:none !important; }
+  @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition:none !important; } }
+</style>
+</head>
+<body>
+
+<div id="splash" role="dialog" aria-label="線をまっすぐを開始">
+  <img src="FNT512.png" alt="FNT ロゴ" />
+  <div class="fnt">FUNCTIONAL NEURO TRAINING</div>
+  <h1>線をまっすぐ</h1>
+  <p class="lead">暗い画面の赤い線を、まっすぐ縦・まっすぐ横に。</p>
+  <button class="tapstart" id="tapStart">タップで開始</button>
+  <button class="muteToggle" id="muteSplash" type="button">🔊 音声オン</button>
+  <div class="copy">© Functional Neuro Training / Legrandchariot</div>
+</div>
+
+<div class="app" id="app" aria-hidden="true">
+  <header>
+    <div class="logo"><img src="FNT512-transparent.png" alt="" /><b>線をまっすぐ</b><span class="staffTag hide" id="staffTag">スタッフ</span></div>
+    <button class="menuBtn" id="menuBtn" aria-label="メニューを開く">☰</button>
+  </header>
+  <main>
+    <section class="screen" id="s1">
+      <div class="step-label">線をまっすぐにする</div>
+      <h2>赤い線を<br>まっすぐ縦・まっすぐ横に</h2>
+      <ul class="setupList">
+        <li><span class="no">1</span><span>部屋を<b>暗く</b>できれば暗くする</span></li>
+        <li><span class="no">2</span><span>スマホを<b>縦に</b>持って、顔の前に近づける</span></li>
+        <li><span class="no">3</span><span>赤い線が出たら、スマホを<b>傾けて</b>線を合わせ、そのまま止める（1回10秒）</span></li>
+        <li><span class="no">4</span><span>縦を4回、横を4回。全部で約2分</span></li>
+      </ul>
+      <div class="msg" id="msg"></div>
+      <button class="btn" id="bGo">始める</button>
+    </section>
+
+    <section class="screen" id="s2">
+      <div id="endCust" class="done">記録しました</div>
+      <p id="endCustNote" class="res">結果は担当者からお伝えします。</p>
+      <div id="endStaff" class="hide"></div>
+      <button class="btn" id="bAgain">もう一度やる</button>
+    </section>
+  </main>
+  <footer>
+    <p class="med">このアプリは体を整えるためのセルフチェックで、医療行為ではありません。診断や治療の代わりにはなりません。強いめまい・ふらつき・吐き気・急な聞こえの変化があるときは医療機関を受診してください。気分が悪くなったら、すぐにやめてください。</p>
+    <span class="fnt-copy">© Functional Neuro Training / Legrandchariot</span>
+  </footer>
+</div>
+
+<div id="svv"><canvas id="svvC"></canvas><div id="svvMsg"></div><button id="svvStop">やめる</button></div>
+
+<div class="overlay" id="overlay"></div>
+<nav class="side" id="side" aria-label="メニュー" aria-hidden="true">
+  <div class="top"><b>メニュー</b><button class="closeBtn" id="closeMenu" aria-label="メニューを閉じる">×</button></div>
+  <h4>音声</h4>
+  <button class="sideBtn" id="muteSide">🔊 音声オン</button>
+  <h4>やり方</h4>
+  <div class="box"><ol>
+    <li>暗い画面に赤い線が1本、斜めに出ます</li>
+    <li>スマホを傾けて、線が「まっすぐ縦」（あとで「まっすぐ横」）に見えるところで止めます</li>
+    <li>10秒たつと「ピッ」と鳴って次の線に変わります</li>
+  </ol><p>周りの壁や窓の縦横が見えると、それに頼ってしまいます。暗い部屋で、画面を顔に近づけてやるのがおすすめです。</p></div>
+  <h4>ホーム画面に追加すると使いやすい</h4>
+  <div class="box"><ol><li>共有ボタン（□から↑のマーク）を押す</li><li>「ホーム画面に追加」を選ぶ</li></ol></div>
+  <div id="staffSide" class="hide">
+    <h4>スタッフ用</h4>
+    <button class="sideBtn" id="bCopyAll">この端末の記録を全部コピー</button>
+    <div class="box" id="runCount"></div>
+  </div>
+  <div class="learn">
+    <a href="https://bodydiscovery.info/owned-optin" target="_blank" rel="noopener">もっと学びたい人へ → https://bodydiscovery.info/owned-optin</a>
+    <span class="side-copy">© Functional Neuro Training / Legrandchariot</span>
+  </div>
+</nav>
+
+<script>
+// ════ 線をまっすぐにする（SVV＝主観的垂直・SVH＝主観的水平）
+// もとは ~/FNT-Apps/fnt-camera-check の「14. 線をまっすぐにする」（2026-10-15 宮崎さん）。2026-10-16 にこの1つだけを別アプリに切り出した。カメラは使わない。
+// 暗い画面に赤い線を1本、傾けて出す。本人はスマホを傾けて、線を「まっすぐ縦」（SVV）・「まっすぐ横」（SVH）に合わせて止める。
+// 線は画面に対して固定（バケツの内側の線と同じ）。止まったときの線の、重力に対する傾き＝画面上の線の角度＋スマホの傾き（加速度で重力の向きを取る）。
+// 縦4回・横4回。始めは右・左へ交互に 12〜20° 傾けておく（Carrick CNS05-22：半分ずつ反対から始める。Z-Health Next Evolution：傾けて渡し、右からと左からの両方）。
+// 読み（Z-Health 9S Next Evolution マニュアル p.27–28・スライド p.97）：平均のずれが SVV 2.5° 以上・SVH 1.5° 以上で異常。
+//   SVV は線の上の端が、SVH は下がった端が、働きの落ちた耳石の側を向く。どちらも「時計回り（＋）＝本人の右」。
+//   SVV は球形嚢寄り・SVH は卵形嚢寄り（Next Evolution 動画 Module 3）。ただし本（Vestibular Rehabilitation 印刷頁189）は「どちらかは特定できない」。
+//   中枢なら：延髄・橋（上部の橋より下）は同じ側、小脳・中脳より上は反対側へ傾くことが多い（Vestibular Rehabilitation 印刷頁190・Carrick CNS10 Handbook p.72）。
+// 本来は暗室かバケツで、周りの縦横の手がかりを消す。スマホの画面だけでは消し切れない（Carrick CNS09-14：アプリだけでは周りが見える）ので、仮の代わり。部屋を暗くし、画面を顔に近づけてもらう
+// 1回は10秒決め打ちで、残りの秒数を出す。読むのは最後の1.5秒の傾き（2026-10-15 宮崎さん「何秒やればいいかわからない。合わせる時間は10秒ぐらい」「何回もやって平均値」）。
+// お客さんの画面（ふつうの URL）には判定も数字も出さず「記録しました」だけ。?staff=1 で判定と数字を出す（もとのアプリと同じ）
+const $ = id => document.getElementById(id);
+const STAFF = /[?&]staff\b/.test(location.search);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const mean = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : NaN;
+const med = a => { if (!a.length) return NaN; const v = [...a].sort((x, y) => x - y), n = v.length >> 1; return v.length % 2 ? v[n] : (v[n - 1] + v[n]) / 2; };
+const sd = a => { const m = mean(a); return Math.sqrt(mean(a.map(x => (x - m) ** 2))); };
+const r1 = v => Number.isFinite(v) ? Math.round(v * 10) / 10 : null;
+let tok = 0, RUN = null;
+
+// ── 音声：ElevenLabs で前もって作った音声（voice/）を流す。無い文だけ端末の声で読む（もとのアプリと同じ）。文を足したら tools/voice_build.py を走らせる
+let VOICE = localStorage.getItem('fntVoice') !== 'off', said = '', jaV = null, VMAP = null;
+const VA = new Audio();
+const vkey = t => t.replace(/[\s。]/g, '');
+fetch('voice/index.json', { cache: 'no-cache' }).then(r => r.json()).then(m => { VMAP = m; }).catch(() => {});
+const toSpeech = html => { const d = document.createElement('div'); d.innerHTML = String(html).replace(/<br\s*\/?>/g, '。').replace(/<small>/g, '。');
+  return d.textContent.replace(/\s+/g, ' ').replace(/。+/g, '。').replace(/^。|。$/g, '').trim(); };
+let vPend = null;
+function vplay(src) { vPend = null; VA.pause(); VA.muted = false; VA.src = src; VA.play().catch(e => { if (e && e.name === 'NotAllowedError') vPend = src; }); }
+function say(html) {
+  const t = html ? toSpeech(html) : ''; if (!t || t === said) return; said = t;
+  if (!VOICE) return;
+  const f = VMAP && VMAP[vkey(t)];
+  if (f) { try { speechSynthesis.cancel(); } catch (e) {} vplay('voice/' + f); return; }
+  if (STAFF) console.log('[voice] 音声ファイルなし：' + t);
+  if (!window.speechSynthesis) return;
+  VA.pause();
+  try { speechSynthesis.cancel(); const x = new SpeechSynthesisUtterance(t); x.lang = 'ja-JP'; x.rate = 1.1;
+    jaV = jaV || speechSynthesis.getVoices().find(v => /^ja/i.test(v.lang)); if (jaV) x.voice = jaV; speechSynthesis.speak(x); } catch (e) {}
+}
+// スマホは、押した瞬間の外で鳴らそうとすると断られることがある。鳴らせなかった文は次にさわったときに鳴らす
+let AC = null;
+['pointerdown', 'touchend', 'click'].forEach(k => addEventListener(k, () => {
+  try { if (AC && AC.state !== 'running') AC.resume(); } catch (e) {}
+  if (vPend && VOICE) { const s = vPend; vPend = null; VA.src = s; VA.play().catch(() => {}); }
+}, true));
+function beep(f = 660, ms = 80) {   // 1回おわりの合図
+  try { const A = window.AudioContext || window.webkitAudioContext; AC = AC || new A(); const o = AC.createOscillator(), g = AC.createGain();
+    o.frequency.value = f; g.gain.value = 0.2; o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime + ms / 1000); } catch (e) {}
+}
+function muteUI() { for (const id of ['muteSplash', 'muteSide']) { const b = $(id); b.textContent = VOICE ? '🔊 音声オン' : '🔇 音声オフ'; b.classList.toggle('off', !VOICE); } }
+function toggleVoice(e) { e.stopPropagation(); VOICE = !VOICE; localStorage.setItem('fntVoice', VOICE ? 'on' : 'off'); muteUI(); if (!VOICE) { try { speechSynthesis.cancel(); } catch (_) {} VA.pause(); } }
+$('muteSplash').onclick = toggleVoice; $('muteSide').onclick = toggleVoice; muteUI();
+
+// ── スマホの傾き（加速度の重力の向き）。iPhone は押したボタンの中で許可を取る
+let MOT = null, motOn = false;
+async function motionStart() {
+  if (motOn) return true;
+  try { if (typeof DeviceMotionEvent === 'undefined') return false; if (typeof DeviceMotionEvent.requestPermission === 'function' && (await DeviceMotionEvent.requestPermission()) !== 'granted') return false; } catch (e) { return false; }
+  addEventListener('devicemotion', e => {
+    const g = e.accelerationIncludingGravity; if (!g || !Number.isFinite(g.x) || !Number.isFinite(g.y)) return;
+    const land = Math.abs((screen.orientation && screen.orientation.angle) || window.orientation || 0) % 180 === 90;
+    // roll：向きつきの傾き（＋＝本人から見て時計回り＝画面の上が右へ）。縦持ちのときだけ。iPhone と Android は重力の符号が逆なので、縦の成分の符号でそろえる
+    const sg = g.y >= 0 ? 1 : -1, roll = land || Math.abs(g.y) < 3 ? null : Math.atan2(-g.x * sg, g.y * sg) * 180 / Math.PI;
+    MOT = { t: performance.now(), roll };
+  });
+  motOn = true; return true;
+}
+const phoneRoll = () => MOT && MOT.roll != null && performance.now() - MOT.t < 1000 ? MOT.roll : null;
+window.__setRoll = r => { motOn = true; MOT = { t: performance.now(), roll: r }; };   // 確かめ用（自動の試験で、スマホの傾きを入れる）
+
+// ── 画面の明かりを消さない
+let wake = null;
+async function wakeOn() { try { wake = await navigator.wakeLock.request('screen'); } catch (e) {} }
+function wakeOff() { try { wake && wake.release(); } catch (e) {} wake = null; }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && document.body.classList.contains('playing')) wakeOn(); });
+
+// ── 線と測る画面
+const SVV_TH = 2.5, SVH_TH = 1.5, SVV_N = 4, SVV_SEC = 10, SVV_TAIL = 1500, SVV_OFF = 10;   // 度・回数・1回の秒数・読む長さ(ms)・合わせられていないとみて平均から外すずれ(度)
+function svvShow(on) { $('svv').style.display = on ? 'block' : 'none'; document.body.classList.toggle('playing', on); on ? wakeOn() : wakeOff(); if (!on) svvMsg(''); }
+function svvMsg(html) { $('svvMsg').innerHTML = html; if (html) say(html); }
+function svvLine(kind, deg) {   // deg：画面に対する線の傾き（＋＝時計回り）
+  const c = $('svvC'), w = c.clientWidth, h = c.clientHeight, x = c.getContext('2d'), k = devicePixelRatio || 1;
+  c.width = w * k; c.height = h * k; x.setTransform(k, 0, 0, k, 0, 0); x.clearRect(0, 0, w, h);
+  document.body.dataset.svv = kind ? kind + ' ' + deg : '';   // 確かめ用（自動の試験で、いま出ている線の向きを読む）
+  if (!kind) return;
+  const L = Math.hypot(w, h) / 2 + 10;   // 画面の端から端まで貫く（2026-10-15 宮崎さん）
+  x.translate(w / 2, h / 2); x.rotate(deg * Math.PI / 180);
+  x.strokeStyle = '#d32020'; x.lineWidth = 5; x.lineCap = 'round'; x.beginPath();
+  if (kind === 'V') { x.moveTo(0, -L); x.lineTo(0, L); } else { x.moveTo(-L, 0); x.lineTo(L, 0); }
+  x.stroke();
+}
+async function svvTrial(p, my) {
+  // 線の傾きは「いまのスマホの傾き」を差し引いて決める＝重力に対して毎回 p.start だけ傾いて出る（前の回でスマホが傾いたままでも、毎回 12〜20° 動かして合わせる）
+  const t0 = performance.now(), r0 = phoneRoll() ?? 0, th = p.start - r0, S = [];
+  svvLine(p.kind, th);
+  let shown = -1;
+  while (my === tok && performance.now() - t0 < SVV_SEC * 1000) {
+    const now = performance.now(), r = phoneRoll(), left = Math.ceil(SVV_SEC - (now - t0) / 1000);
+    if (left !== shown) { $('svvMsg').innerHTML = `<span style="font-size:44px">${left}</span><small>合わせたら、そのまま止める</small>`; shown = left; }   // 秒数は読み上げない（毎秒しゃべると邪魔になる）
+    if (r != null) S.push({ t: now, r });
+    await sleep(30);
+  }
+  $('svvMsg').innerHTML = '';
+  const now = performance.now(), w = S.filter(o => now - o.t <= SVV_TAIL), roll = med(w.map(o => o.r));
+  if (w.length < 5 || !Number.isFinite(roll)) return { kind: p.kind, ok: false, start: r1(p.start) };
+  const err = th + roll;
+  return { kind: p.kind, ok: true, start: r1(p.start), err: r1(err), roll: r1(roll), off: Math.abs(err) > SVV_OFF, sway: r1(Math.max(...w.map(o => o.r)) - Math.min(...w.map(o => o.r))) };   // off：合わせられていない回／sway：最後の1.5秒の揺れ幅
+}
+function note(t) { const m = $('msg'); m.textContent = t || ''; m.classList.toggle('show', !!t); if (t) say(t); }
+function showScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id)); scrollTo(0, 0); }
+
+async function stepSvv() {
+  const my = ++tok; note('');
+  $('bGo').disabled = true;
+  try {
+    VA.muted = false; VA.src = 'voice/unlock.mp3'; VA.play().catch(() => {});   // 押したときに一度鳴らしておかないと、後で音が出ない端末がある
+    await motionStart();
+    const w0 = performance.now(); while (my === tok && phoneRoll() == null && performance.now() - w0 < 2500) await sleep(100);
+    if (my !== tok) return;
+    if (phoneRoll() == null) {
+      const land = Math.abs((screen.orientation && screen.orientation.angle) || window.orientation || 0) % 180 === 90;
+      return note(land ? 'スマホを縦に持ってください' : 'この端末では測れませんでした');
+    }
+    RUN = { started: new Date().toISOString(), ua: navigator.userAgent };
+    const plan = [];   // 縦4・横4。始めの傾きは右・左を交互に（最初の向きはばらばら）、大きさは 12〜20° でばらばら
+    for (const kind of ['V', 'H']) { const s0 = Math.random() < 0.5 ? 1 : -1; for (let i = 0; i < SVV_N; i++) plan.push({ kind, start: (i % 2 ? -s0 : s0) * (12 + Math.random() * 8) }); }
+    svvShow(true); const T = [];
+    for (let i = 0; i < plan.length; i++) {
+      const p = plan[i];
+      if (i === 0 || plan[i - 1].kind !== p.kind) { svvLine(null); svvMsg(p.kind === 'V' ? '線を<b>まっすぐ縦</b>に<small>スマホを傾けて合わせ、止める。1回10秒</small>' : '次は<b>まっすぐ横</b>に<small>スマホを傾けて合わせ、止める。1回10秒</small>'); await sleep(3000); if (my !== tok) return; svvMsg(''); }
+      T.push(await svvTrial(p, my)); if (my !== tok) return;
+      beep(660, 80); svvLine(null); await sleep(800);
+    }
+    svvShow(false); analyzeSvv(T);
+  } finally { if (my === tok) $('bGo').disabled = false; }
+}
+function analyzeSvv(T) {
+  const one = (kind, th) => { const a = T.filter(t => t.kind === kind && t.ok && !t.off);   // 平均は、合わせられた回（ずれ10°以内）だけで出す
+    if (a.length < 2) return { ok: false, n: a.length };
+    const e = a.map(t => t.err), m = mean(e), side = Math.abs(m) >= th ? (m > 0 ? '右' : '左') : null;
+    return { ok: true, n: a.length, mean: r1(m), sd: r1(sd(e)), each: e, side, th }; };
+  const V = one('V', SVV_TH), H = one('H', SVH_TH);
+  Object.assign(RUN, { ok: V.ok || H.ok, V, H, trials: T, ended: new Date().toISOString() });
+  if (!RUN.ok) { showScreen('s1'); return note('線を合わせたところを読み取れませんでした。もう一度どうぞ'); }
+  const n = saveRun();
+  showScreen('s2'); say('記録しました');
+  $('endCust').classList.toggle('hide', STAFF); $('endCustNote').classList.toggle('hide', STAFF); $('endStaff').classList.toggle('hide', !STAFF);
+  if (!STAFF) return;
+  const row = (o, nm, end) => !o.ok ? `${nm}：読み取れず（合わせられた回 ${o.n}）` : `${nm}：平均 <b>${o.mean > 0 ? '右' : '左'}へ ${Math.abs(o.mean).toFixed(1)}°</b>（${o.each.map(e => (e > 0 ? '+' : '') + e.toFixed(1)).join('・')}・ばらつき ±${o.sd}°）${end}`;
+  const rd = (o, nm, organ, end) => o.ok && o.side ? `<br><b>${o.side}の耳石（${organ}寄り）</b>の働き低下の可能性 — ${nm}で${end}が${o.side}へ平均 ${Math.abs(o.mean).toFixed(1)}°（${o.th}°以上で異常）` : '';
+  const jv = rd(V, '縦（SVV）', '球形嚢', '線の上の端'), jh = rd(H, '横（SVH）', '卵形嚢', '下がった端');
+  const offN = T.filter(t => t.ok && t.off).length, ngN = T.filter(t => !t.ok).length;
+  $('endStaff').innerHTML = `<div class="done">結果（スタッフ用）</div>
+  <div class="res">${row(V, '縦（SVV）', '（＋＝上の端が右）')}<br>${row(H, '横（SVH）', '（＋＝右の端が下）')}${offN || ngN ? `<br><span class="small">平均から外した回：10°以上外れた ${offN}回・読み取れなかった ${ngN}回</span>` : ''}</div>
+  <div class="res judge">内部の読み（仮）：${jv || jh ? jv + jh : '<br>縦・横とも正常の範囲'}<br><span class="small">Z-Health 9S Next Evolution（マニュアル p.27–28・スライド p.97）：SVV は 2.5°以上・SVH は 1.5°以上で異常。SVV は線の上の端が、SVH は下がった端が、働きの落ちた耳石の側を向く。SVV＝球形嚢寄り・SVH＝卵形嚢寄り（同 動画 Module 3）。延髄・橋なら同じ側、小脳・中脳より上なら反対側へ傾くことが多い（Vestibular Rehabilitation 印刷頁190・Carrick CNS10 Handbook p.72）。本来は暗室かバケツで周りを隠して測る。スマホだけでは周りの縦横が見えるので、数字は仮</span></div>
+  <textarea id="endText" readonly></textarea><button class="btn sub" id="bCopy">この結果をコピー</button>
+  <p class="small">この端末に残っている記録：${n}件</p>`;
+  const one2 = (o, nm) => o.ok ? `${nm} 平均${o.mean > 0 ? '右' : '左'}へ${Math.abs(o.mean).toFixed(1)}°（${o.each.map(e => (e > 0 ? '+' : '') + e.toFixed(1)).join('・')}）` : `${nm} —`;
+  $('endText').value = `線をまっすぐ（${RUN.ended.slice(0, 16).replace('T', ' ')}）\n${one2(V, '縦（SVV）')}／${one2(H, '横（SVH）')}（＋＝時計回り＝本人の右）\n内部の読み（仮）：${[V.ok && V.side ? V.side + 'の耳石（SVV）' : '', H.ok && H.side ? H.side + 'の耳石（SVH）' : ''].filter(Boolean).join('・') || '正常の範囲'}\n\n` + JSON.stringify(RUN);
+  $('bCopy').onclick = () => copyText($('endText').value, $('bCopy'));
+}
+function saveRun() { try { const a = JSON.parse(localStorage.getItem('svv_runs') || '[]'); a.push(RUN); while (a.length > 30) a.shift(); localStorage.setItem('svv_runs', JSON.stringify(a)); return a.length; } catch (e) { return 0; } }
+async function copyText(t, b) { let ok = false; try { await navigator.clipboard.writeText(t); ok = true; } catch (e) { const a = $('endText'); if (a) { a.value = t; a.select(); try { ok = document.execCommand('copy'); } catch (_) {} } } b.textContent = ok ? 'コピーしました' : '上の枠を長押しでコピー'; }
+
+$('bGo').onclick = stepSvv;
+$('bAgain').onclick = () => { showScreen('s1'); stepSvv(); };
+$('svvStop').onclick = () => { tok++; svvShow(false); showScreen('s1'); $('bGo').disabled = false; note(''); };
+$('tapStart').onclick = () => {
+  try { VA.muted = false; VA.src = 'voice/unlock.mp3'; VA.play().catch(() => {}); } catch (e) {}
+  $('splash').classList.add('hide'); $('app').setAttribute('aria-hidden', 'false'); showScreen('s1');
+};
+
+// ── サイドメニュー（モーダルでない・ESC で閉じる）
+function menu(open) { $('side').classList.toggle('open', open); $('overlay').classList.toggle('open', open); $('side').setAttribute('aria-hidden', open ? 'false' : 'true');
+  if (open && STAFF) { let n = 0; try { n = JSON.parse(localStorage.getItem('svv_runs') || '[]').length; } catch (e) {} $('runCount').textContent = `この端末に残っている記録：${n}件`; } }
+$('menuBtn').onclick = () => menu(true); $('closeMenu').onclick = () => menu(false); $('overlay').onclick = () => menu(false);
+addEventListener('keydown', e => { if (e.key === 'Escape') menu(false); });
+if (STAFF) { $('staffTag').classList.remove('hide'); $('staffSide').classList.remove('hide'); }
+$('bCopyAll').onclick = () => copyText(localStorage.getItem('svv_runs') || '[]', $('bCopyAll'));
+window.__svv = { analyzeSvv, svvTrial, stepSvv, get RUN() { return RUN; } };   // 確かめ用
+
+if ('serviceWorker' in navigator) {
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (refreshing) return; refreshing = true;   // 測っている最中は読み込み直さない（終わってから）
+    const go = () => document.body.classList.contains('playing') ? setTimeout(go, 2000) : location.reload(); go(); });
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(err => console.warn('[SW] register failed', err)));
+}
+</script>
+</body>
+</html>

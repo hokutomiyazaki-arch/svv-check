@@ -1,0 +1,16 @@
+{
+  "name": "線をまっすぐ（SVV・SVH）",
+  "short_name": "線をまっすぐ",
+  "description": "暗い画面の赤い線を、スマホを傾けて「まっすぐ縦」「まっすぐ横」に合わせるチェック。Functional Neuro Training。",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1a20",
+  "theme_color": "#0b1a20",
+  "lang": "ja",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
