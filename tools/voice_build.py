@@ -18,7 +18,7 @@ SIB = ROOT.parent / 'fnt-camera-check' / 'voice'
 API, MODEL, VOICE = 'https://api.elevenlabs.io', 'eleven_v3', '1cOJcfrlMmUCGpeJbXg9'   # リョウ
 
 TEXTS = ['線をまっすぐ縦に。スマホを傾けて合わせ、止める。1回10秒', '次はまっすぐ横に。スマホを傾けて合わせ、止める。1回10秒',
-         '記録しました', 'この端末では測れませんでした', 'スマホを縦に持ってください', '線を合わせたところを読み取れませんでした。もう一度どうぞ']
+         '記録しました', 'この端末では測れませんでした', 'スマホを縦に持ってください', '線を合わせたところを読み取れませんでした。もう一度どうぞ', 'スマホを顔に近づけて。画面で見える範囲がほぼ埋まるくらい']
 
 def vkey(t): return re.sub(r'[\s。]', '', t)
 def say_text(t): return t.replace('OK', 'オーケー').strip('。 ')
