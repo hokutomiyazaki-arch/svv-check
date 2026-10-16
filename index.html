@@ -229,18 +229,21 @@ $('muteSplash').onclick = toggleVoice; $('muteSide').onclick = toggleVoice; mute
 
 // ── スマホの傾き（加速度の重力の向き）。iPhone は押したボタンの中で許可を取る
 let MOT = null, motOn = false;
-async function motionStart() {
-  if (motOn) return true;
-  try { if (typeof DeviceMotionEvent === 'undefined') return false; if (typeof DeviceMotionEvent.requestPermission === 'function' && (await DeviceMotionEvent.requestPermission()) !== 'granted') return false; } catch (e) { return false; }
+async function motionStart() {   // 戻り値：'ok'／'denied'（許可が出ない）／'none'（センサーが無い）
+  if (motOn) return 'ok';
+  try { if (typeof DeviceMotionEvent === 'undefined') return 'none'; if (typeof DeviceMotionEvent.requestPermission === 'function' && (await DeviceMotionEvent.requestPermission()) !== 'granted') return 'denied'; } catch (e) { return 'denied'; }
   addEventListener('devicemotion', e => {
     const g = e.accelerationIncludingGravity; if (!g || !Number.isFinite(g.x) || !Number.isFinite(g.y)) return;
-    const land = Math.abs((screen.orientation && screen.orientation.angle) || window.orientation || 0) % 180 === 90;
-    // roll：向きつきの傾き（＋＝本人から見て時計回り＝画面の上が右へ）。縦持ちのときだけ。iPhone と Android は重力の符号が逆なので、縦の成分の符号でそろえる
-    const sg = g.y >= 0 ? 1 : -1, roll = land || Math.abs(g.y) < 3 ? null : Math.atan2(-g.x * sg, g.y * sg) * 180 / Math.PI;
-    MOT = { t: performance.now(), roll };
+    // 端末の軸の重力を、いまの画面の向きの軸に回す。iPad は横持ちが多いので、縦・横どちらの持ち方でも測る（2026-10-16 宮崎さん「iPadだと読み取れない」）
+    const a = scrAngle() * Math.PI / 180, sx = g.x * Math.cos(a) - g.y * Math.sin(a), sy = g.x * Math.sin(a) + g.y * Math.cos(a);
+    // roll：向きつきの傾き（＋＝本人から見て時計回り＝画面の上が右へ）。iPhone と Android は重力の符号が逆なので、画面の縦の成分の符号でそろえる。
+    // 寝かせすぎ（画面の縦の成分が 1.5 未満＝ほぼ平置き）だけ読まない。以前は 3 で、iPad を後ろへ倒して持つと読めなかった
+    const sg = sy >= 0 ? 1 : -1, roll = Math.abs(sy) < 1.5 ? null : Math.atan2(-sx * sg, sy * sg) * 180 / Math.PI;
+    MOT = { t: performance.now(), roll, flat: Math.abs(sy) < 1.5 };
   });
-  motOn = true; return true;
+  motOn = true; return 'ok';
 }
+function scrAngle() { const o = screen.orientation && Number.isFinite(screen.orientation.angle) ? screen.orientation.angle : (window.orientation || 0); return ((o % 360) + 360) % 360; }
 const phoneRoll = () => MOT && MOT.roll != null && performance.now() - MOT.t < 1000 ? MOT.roll : null;
 window.__setRoll = r => { motOn = true; MOT = { t: performance.now(), roll: r }; };   // 確かめ用（自動の試験で、スマホの傾きを入れる）
 
@@ -290,13 +293,14 @@ async function stepSvv() {
   $('bGo').disabled = true;
   try {
     VA.muted = false; VA.src = 'voice/unlock.mp3'; VA.play().catch(() => {});   // 押したときに一度鳴らしておかないと、後で音が出ない端末がある
-    await motionStart();
-    const w0 = performance.now(); while (my === tok && phoneRoll() == null && performance.now() - w0 < 2500) await sleep(100);
+    note('傾きのセンサーを準備しています…');   // 押したことがすぐ分かるように（2026-10-16 宮崎さん「ボタン押してもなかなかスタートしない」）
+    const st = await motionStart();
+    if (st === 'denied') return note('傾きを読む許可が出ていません。Safari のタブを閉じて開き直し、「始める」→「許可」を押してください');
+    if (st === 'none') return note('この端末には傾きのセンサーがありません');
+    const w0 = performance.now(); while (my === tok && phoneRoll() == null && performance.now() - w0 < 4000) await sleep(100);
     if (my !== tok) return;
-    if (phoneRoll() == null) {
-      const land = Math.abs((screen.orientation && screen.orientation.angle) || window.orientation || 0) % 180 === 90;
-      return note(land ? 'スマホを縦に持ってください' : 'この端末では測れませんでした');
-    }
+    if (phoneRoll() == null) return note(MOT && MOT.flat ? '端末を寝かせすぎています。画面を顔に向けて立てて持ってください' : 'この端末では傾きを読み取れませんでした');
+    note('');
     RUN = { started: new Date().toISOString(), ua: navigator.userAgent };
     const plan = [];   // 縦4・横4。始めの傾きは右・左を交互に（最初の向きはばらばら）、大きさは 12〜20° でばらばら
     for (const kind of ['V', 'H']) { const s0 = Math.random() < 0.5 ? 1 : -1; for (let i = 0; i < SVV_N; i++) plan.push({ kind, start: (i % 2 ? -s0 : s0) * (12 + Math.random() * 8) }); }

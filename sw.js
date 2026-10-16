@@ -1,7 +1,7 @@
 // Service Worker ─ 線をまっすぐ（SVV・SVH / Functional Neuro Training）
 // 戦略：Network First（新しいコードを最優先で拾う）。オフライン時のみキャッシュへ。
 // index.html 側で controllerchange を検知して読み込み直す（測っている最中は待つ）。
-const CACHE_NAME = 'svv-check-v1.0.0';
+const CACHE_NAME = 'svv-check-v1.0.1';
 const ASSETS_TO_CACHE = ['./', './index.html', './manifest.json', './FNT512.png', './FNT512-transparent.png', './voice/index.json', './voice/unlock.mp3',
   'https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap'];
 
