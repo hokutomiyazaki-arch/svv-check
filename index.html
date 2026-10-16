@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#000000" />
+<meta name="theme-color" content="#ffffff" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="SVV テスト" />
-<meta name="description" content="暗い画面の赤い線を、スマホを傾けて「まっすぐ縦」「まっすぐ横」に合わせるチェック（SVV・SVH）。Functional Neuro Training。" />
+<meta name="description" content="白い画面の赤い線を、スマホを傾けて「まっすぐ縦」「まっすぐ横」に合わせるチェック（SVV・SVH）。Functional Neuro Training。" />
 <title>SVV テスト / Functional Neuro Training</title>
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
@@ -17,9 +17,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap" rel="stylesheet" />
 <style>
-  /* 骨格は pinto-8（FNT 標準）に合わせる。配色は黒（2026-10-16 宮崎さん「背景色は緑じゃなくて黒にしてプロフェッショナルな感じ」）。差し色は測る線と同じ赤 */
-  :root{ --bg0:#000; --bg1:#0e0e10; --bg2:#18181b; --accent:#f2f2f3; --accent2:#c9c9cf; --accentInk:#0a0a0a; --red:#e2483d;
-    --ink:#f2f2f3; --muted:#a3a3a8; --line:rgba(255,255,255,.12); --card:rgba(255,255,255,.06); --danger:#ffb4a8; }
+  /* 骨格は pinto-8（FNT 標準）に合わせる。配色は白（2026-10-16 宮崎さん：最初は黒にしたが「黒だと画面に顔などが映り込む」ので白に）。文字とボタンは黒、差し色は測る線と同じ赤 */
+  :root{ --bg0:#fff; --bg1:#f6f6f7; --bg2:#ececee; --accent:#111113; --accent2:#2c2c30; --accentInk:#fff; --red:#d32020;
+    --ink:#111113; --muted:#5f5f66; --line:rgba(0,0,0,.12); --card:rgba(0,0,0,.04); --danger:#c0392b; }
   *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
   html,body{ overflow-x:hidden; max-width:100%; }
   body{ font-family:"M PLUS Rounded 1c", system-ui, sans-serif; font-weight:700; color:var(--ink); line-height:1.7;
@@ -65,20 +65,20 @@
   .btn{ width:100%; min-height:56px; border-radius:16px; font-size:18px; font-weight:800; color:var(--accentInk); background:linear-gradient(180deg,var(--accent),var(--accent2)); margin-top:10px; }
   a.btn{ display:flex; align-items:center; justify-content:center; text-decoration:none; }
   .btn.sub{ background:var(--card); color:var(--ink); border:1px solid var(--line); font-size:16px; min-height:50px; }
-  .msg{ margin:12px 0; padding:14px 16px; border-radius:14px; background:rgba(255,180,168,.12); border:1px solid var(--danger); font-size:15px; display:none; }
+  .msg{ margin:12px 0; padding:14px 16px; border-radius:14px; background:rgba(192,57,43,.07); border:1px solid var(--danger); font-size:15px; display:none; }
   .msg.show{ display:block; }
   .res{ margin:10px 0; padding:14px 16px; border-radius:14px; background:var(--card); border:1px solid var(--line); font-size:15px; line-height:1.8; }
   .res.judge{ border-color:var(--accent2); }
   .small{ font-size:12px; color:var(--muted); font-weight:500; line-height:1.7; display:inline-block; margin-top:6px; }
   .done{ font-size:22px; font-weight:800; text-align:center; margin:30px 0 10px; }
-  textarea{ width:100%; height:120px; margin-top:8px; border-radius:12px; background:#0006; color:var(--ink); border:1px solid var(--line); padding:10px; font-size:12px; font-family:ui-monospace,monospace; }
+  textarea{ width:100%; height:120px; margin-top:8px; border-radius:12px; background:#f4f4f5; color:var(--ink); border:1px solid var(--line); padding:10px; font-size:12px; font-family:ui-monospace,monospace; }
 
-  /* 測る画面：真っ黒に赤い線だけ（周りの縦横の手がかりを減らす） */
-  #svv{ position:fixed; inset:0; display:none; z-index:300; background:#000; }
+  /* 測る画面：真っ白に赤い線だけ（黒だと画面に顔が映り込むので白。2026-10-16 宮崎さん） */
+  #svv{ position:fixed; inset:0; display:none; z-index:300; background:#fff; }
   #svv canvas{ position:absolute; inset:0; width:100%; height:100%; }
-  #svvMsg{ position:absolute; left:50%; top:18%; transform:translateX(-50%); width:min(92vw,520px); text-align:center; font-weight:800; font-size:clamp(22px,6vw,30px); line-height:1.45; color:#ddd; }
-  #svvMsg small{ display:block; font-size:15px; font-weight:600; color:#999; margin-top:6px; }
-  #svvStop{ position:absolute; right:calc(14px + env(safe-area-inset-right)); bottom:calc(14px + env(safe-area-inset-bottom)); padding:8px 14px; border-radius:10px; background:#111; color:#555; font-size:13px; border:1px solid #222; }
+  #svvMsg{ position:absolute; left:50%; top:18%; transform:translateX(-50%); width:min(92vw,520px); text-align:center; font-weight:800; font-size:clamp(22px,6vw,30px); line-height:1.45; color:#222; }
+  #svvMsg small{ display:block; font-size:15px; font-weight:600; color:#666; margin-top:6px; }
+  #svvStop{ position:absolute; right:calc(14px + env(safe-area-inset-right)); bottom:calc(14px + env(safe-area-inset-bottom)); padding:8px 14px; border-radius:10px; background:#f2f2f3; color:#888; font-size:13px; border:1px solid #e2e2e4; }
 
   footer{ padding:20px 20px calc(20px + env(safe-area-inset-bottom)); text-align:center; }
   .med{ font-size:11.5px; color:var(--muted); line-height:1.75; }
@@ -111,7 +111,7 @@
   <img src="FNT512.png" alt="FNT ロゴ" />
   <div class="fnt">FUNCTIONAL NEURO TRAINING</div>
   <h1>SVV テスト</h1>
-  <p class="lead">暗い画面の赤い線を、まっすぐ縦・まっすぐ横に。</p>
+  <p class="lead">白い画面の赤い線を、まっすぐ縦・まっすぐ横に。</p>
   <button class="tapstart" id="tapStart">タップで開始</button>
   <button class="muteToggle" id="muteSplash" type="button">🔊 音声オン</button>
   <a class="aboutLink" href="about.html">このテストについて（意味・読み方・出典）</a>
@@ -139,8 +139,8 @@
     </section>
 
     <section class="screen" id="s2">
-      <div id="endCust" class="done">記録しました</div>
-      <p id="endCustNote" class="res">結果は担当者からお伝えします。</p>
+      <div id="endCust" class="done">結果</div>
+      <div id="endCustNote"></div>
       <div id="endStaff" class="hide"></div>
       <button class="btn" id="bAgain">もう一度やる</button>
     </section>
@@ -162,7 +162,7 @@
   <button class="sideBtn" id="muteSide">🔊 音声オン</button>
   <h4>やり方</h4>
   <div class="box"><ol>
-    <li>暗い画面に赤い線が1本、斜めに出ます</li>
+    <li>白い画面に赤い線が1本、斜めに出ます</li>
     <li>スマホを傾けて、線が「まっすぐ縦」（あとで「まっすぐ横」）に見えるところで止めます</li>
     <li>10秒たつと「ピッ」と鳴って次の線に変わります</li>
   </ol><p>周りの壁や窓の縦横が見えると、それに頼ってしまいます。暗い部屋で、画面を顔に近づけてやるのがおすすめです。</p></div>
@@ -182,7 +182,7 @@
 <script>
 // ════ 線をまっすぐにする（SVV＝主観的垂直・SVH＝主観的水平）
 // もとは ~/FNT-Apps/fnt-camera-check の「14. 線をまっすぐにする」（2026-10-15 宮崎さん）。2026-10-16 にこの1つだけを別アプリに切り出した。カメラは使わない。
-// 暗い画面に赤い線を1本、傾けて出す。本人はスマホを傾けて、線を「まっすぐ縦」（SVV）・「まっすぐ横」（SVH）に合わせて止める。
+// 白い画面に赤い線を1本、傾けて出す。本人はスマホを傾けて、線を「まっすぐ縦」（SVV）・「まっすぐ横」（SVH）に合わせて止める。
 // 線は画面に対して固定（バケツの内側の線と同じ）。止まったときの線の、重力に対する傾き＝画面上の線の角度＋スマホの傾き（加速度で重力の向きを取る）。
 // 縦4回・横4回。始めは右・左へ交互に 12〜20° 傾けておく（右からと左からを半分ずつ。始めの位置で値が変わる：van der Waal 2024）。
 // 読み：平均のずれが SVV 2.5° 以上・SVH 1.5° 以上で異常。
@@ -191,7 +191,8 @@
 //   中枢なら：延髄・橋（上部の橋より下）は同じ側、小脳・中脳より上は反対側へ傾くことが多い（Vestibular Rehabilitation 印刷頁190）。
 // 本来は暗室かバケツで、周りの縦横の手がかりを消す。スマホの画面だけでは消し切れないので、仮の代わり。部屋を暗くし、画面を顔に近づけてもらう
 // 1回は10秒決め打ちで、残りの秒数を出す。読むのは最後の1.5秒の傾き（2026-10-15 宮崎さん「何秒やればいいかわからない。合わせる時間は10秒ぐらい」「何回もやって平均値」）。
-// お客さんの画面（ふつうの URL）には判定も数字も出さず「記録しました」だけ。?staff=1 で判定と数字を出す（もとのアプリと同じ）
+// 結果はその場で出す（2026-10-16 宮崎さん「担当者からお伝えするのではなく、その場で出して」）：縦・横の平均のずれ・目安の範囲か・傾いた向き。
+// ?staff=1 ではさらに、1回ごとの値・どちらの耳石かの読み・記録のコピーを出す
 const $ = id => document.getElementById(id);
 const STAFF = /[?&]staff\b/.test(location.search);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -338,6 +339,10 @@ function analyzeSvv(T) {
   const n = saveRun();
   showScreen('s2'); say('記録しました');
   $('endCust').classList.toggle('hide', STAFF); $('endCustNote').classList.toggle('hide', STAFF); $('endStaff').classList.toggle('hide', !STAFF);
+  const cust = (o, nm, end, dir) => !o.ok ? `<div class="res"><b>${nm}</b>：うまく読み取れませんでした（合わせられた回 ${o.n}）</div>`
+    : `<div class="res"><b>${nm}</b>：${Math.abs(o.mean) < 0.05 ? 'ずれ 0.0°' : `${end}が<b>${o.mean > 0 ? dir[0] : dir[1]}へ ${Math.abs(o.mean).toFixed(1)}°</b>`}<br>${o.side ? `<b style="color:var(--red)">目安（${o.th}°未満）を超えるずれ</b>` : `目安（${o.th}°未満）の範囲内`}</div>`;
+  $('endCustNote').innerHTML = cust(V, '縦（SVV）', '線の上の端', ['右', '左']) + cust(H, '横（SVH）', '線の右の端', ['下', '上']) +
+    `<p class="small">同じ条件（部屋の明るさ・持ち方・頭をまっすぐ）でくり返して比べる目安です。診断ではありません。<a href="about.html">このテストについて</a></p>`;
   if (!STAFF) return;
   const row = (o, nm, end) => !o.ok ? `${nm}：読み取れず（合わせられた回 ${o.n}）` : `${nm}：平均 <b>${o.mean > 0 ? '右' : '左'}へ ${Math.abs(o.mean).toFixed(1)}°</b>（${o.each.map(e => (e > 0 ? '+' : '') + e.toFixed(1)).join('・')}・ばらつき ±${o.sd}°）${end}`;
   const rd = (o, nm, organ, end) => o.ok && o.side ? `<br><b>${o.side}の耳石（${organ}寄り）</b>の働き低下の可能性 — ${nm}で${end}が${o.side}へ平均 ${Math.abs(o.mean).toFixed(1)}°（${o.th}°以上で異常）` : '';

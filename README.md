@@ -10,7 +10,7 @@ FNT の PWA（GitHub Pages）。カメラは使わない。スマホの加速度
 - もと：`~/FNT-Apps/fnt-camera-check` の「14. 線をまっすぐにする」を 2026-10-16 に切り出した。読み方・しきい値・出典は index.html の冒頭のコメント
 - 縦4回・横4回。始めは右・左へ交互に12〜20°。1回10秒で最後の1.5秒を読む。10°以上外れた回は平均から外す
 - しきい値：SVV 2.5°・SVH 1.5°以上。＋＝時計回り＝本人の右
-- お客さんの画面は「記録しました」だけ。記録は端末の localStorage（`svv_runs`・最新30件）。スタッフ表示のメニューから全部コピーできる
+- 結果はその場で出す（縦・横の平均のずれと目安の範囲か。2026-10-16 宮崎さん）。?staff=1 ではさらに1回ごとの値・耳石の読み・コピー。背景は白（黒だと顔が映り込む）。記録は端末の localStorage（`svv_runs`・最新30件）。スタッフ表示のメニューから全部コピーできる
 - iPhone は「始める」を押したときに動きの許可を聞く（DeviceMotionEvent.requestPermission）
 - 声：`tools/voice_build.py`（ElevenLabs・リョウ。カメラでチェックに同じ文があれば写す）
 - 骨格は `~/FNT-Apps/pinto-8`（スプラッシュ・☰メニュー・M PLUS Rounded 1c・SW Network First・著作権）
