@@ -135,6 +135,8 @@
       </ul>
       <div class="msg" id="msg"></div>
       <button class="btn" id="bGo">始める</button>
+      <button class="btn sub" id="bTrain">トレーニングモード</button>
+      <p class="small">トレーニングモード：1回10秒のうち後半5秒に、正しい縦・横の線が薄く出ます。自分の「まっすぐ」とのずれを見て覚える練習です（結果は見本が出る前の値）</p>
       <a class="btn sub" href="about.html">このテストについて</a>
     </section>
 
@@ -165,7 +167,7 @@
     <li>白い画面に赤い線が1本、斜めに出ます</li>
     <li>スマホを傾けて、線が「まっすぐ縦」（あとで「まっすぐ横」）に見えるところで止めます</li>
     <li>10秒たつと「ピッ」と鳴って次の線に変わります</li>
-  </ol><p>周りの壁や窓の縦横が見えると、それに頼ってしまいます。暗い部屋で、画面を顔に近づけてやるのがおすすめです。</p></div>
+  </ol><p>トレーニングモードでは、後半5秒に正しい縦・横の線が薄く出ます。</p><p>周りの壁や窓の縦横が見えると、それに頼ってしまいます。暗い部屋で、画面を顔に近づけてやるのがおすすめです。</p></div>
   <h4>ホーム画面に追加すると使いやすい</h4>
   <div class="box"><ol><li>共有ボタン（□から↑のマーク）を押す</li><li>「ホーム画面に追加」を選ぶ</li></ol></div>
   <div id="staffSide" class="hide">
@@ -192,6 +194,9 @@
 // 本来は暗室かバケツで、周りの縦横の手がかりを消す。スマホの画面だけでは消し切れないので、仮の代わり。部屋を暗くし、画面を顔に近づけてもらう
 // 1回は10秒決め打ちで、残りの秒数を出す。読むのは最後の1.5秒の傾き（2026-10-15 宮崎さん「何秒やればいいかわからない。合わせる時間は10秒ぐらい」「何回もやって平均値」）。
 // 結果はその場で出す（2026-10-16 宮崎さん「担当者からお伝えするのではなく、その場で出して」）：縦・横の平均のずれ・目安の範囲か・傾いた向き。
+// トレーニングモード（2026-10-16 宮崎さん「トレーニングモードの最中では、正確な垂直線と水平線が薄く、後半5秒の時に出るように」）：
+//   1回10秒のうち後半5秒に、重力に対して本当の縦・横の線を薄い灰色で重ねる（スマホを傾けても常に本当の縦・横を指す＝画面上の角度は −スマホの傾き）。
+//   後半は見本に合わせられてしまうので、ずれは見本が出る直前の1.5秒（3.5〜5秒）で読む＝自力の「まっすぐ」の値
 // ?staff=1 ではさらに、1回ごとの値・どちらの耳石かの読み・記録のコピーを出す
 const $ = id => document.getElementById(id);
 const STAFF = /[?&]staff\b/.test(location.search);
@@ -200,7 +205,7 @@ const mean = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : NaN;
 const med = a => { if (!a.length) return NaN; const v = [...a].sort((x, y) => x - y), n = v.length >> 1; return v.length % 2 ? v[n] : (v[n - 1] + v[n]) / 2; };
 const sd = a => { const m = mean(a); return Math.sqrt(mean(a.map(x => (x - m) ** 2))); };
 const r1 = v => Number.isFinite(v) ? Math.round(v * 10) / 10 : null;
-let tok = 0, RUN = null;
+let tok = 0, RUN = null, TRAIN = false;
 
 // ── 音声：ElevenLabs で前もって作った音声（voice/）を流す。無い文だけ端末の声で読む（もとのアプリと同じ）。文を足したら tools/voice_build.py を走らせる
 let VOICE = localStorage.getItem('fntVoice') !== 'off', said = '', jaV = null, VMAP = null;
@@ -263,21 +268,27 @@ function wakeOff() { try { wake && wake.release(); } catch (e) {} wake = null; }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && document.body.classList.contains('playing')) wakeOn(); });
 
 // ── 線と測る画面
-const SVV_TH = 2.5, SVH_TH = 1.5, SVV_N = 4, SVV_SEC = 10, SVV_TAIL = 1500, SVV_OFF = 10;   // 度・回数・1回の秒数・読む長さ(ms)・合わせられていないとみて平均から外すずれ(度)
+const SVV_TH = 2.5, SVH_TH = 1.5, SVV_N = 4, SVV_SEC = 10, SVV_TAIL = 1500, SVV_OFF = 10, GUIDE_AT = 5000;   // 度・回数・1回の秒数・読む長さ(ms)・合わせられていないとみて平均から外すずれ(度)
 function svvShow(on) { $('svv').style.display = on ? 'block' : 'none'; document.body.classList.toggle('playing', on); on ? wakeOn() : wakeOff(); if (!on) svvMsg(''); }
 function svvMsg(html) { $('svvMsg').innerHTML = html; if (html) say(html); }
-function svvLine(kind, deg) {   // deg：画面に対する線の傾き（＋＝時計回り）
+function svvLine(kind, deg, guide) {   // deg：画面に対する線の傾き（＋＝時計回り）／guide：見本（本当の縦・横）の画面に対する角度。無ければ出さない
   const c = $('svvC'), w = c.clientWidth, h = c.clientHeight, x = c.getContext('2d'), k = devicePixelRatio || 1;
   c.width = w * k; c.height = h * k; x.setTransform(k, 0, 0, k, 0, 0); x.clearRect(0, 0, w, h);
   document.body.dataset.svv = kind ? kind + ' ' + deg : '';   // 確かめ用（自動の試験で、いま出ている線の向きを読む）
   if (!kind) return;
   const L = Math.hypot(w, h) / 2 + 10;   // 画面の端から端まで貫く（2026-10-15 宮崎さん）
-  x.translate(w / 2, h / 2); x.rotate(deg * Math.PI / 180);
+  x.translate(w / 2, h / 2);
+  if (guide != null) {   // 見本は赤い線の下に、薄い灰色で
+    x.save(); x.rotate(guide * Math.PI / 180); x.strokeStyle = 'rgba(0,0,0,.2)'; x.lineWidth = 3; x.beginPath();
+    if (kind === 'V') { x.moveTo(0, -L); x.lineTo(0, L); } else { x.moveTo(-L, 0); x.lineTo(L, 0); }
+    x.stroke(); x.restore();
+  }
+  x.rotate(deg * Math.PI / 180);
   x.strokeStyle = '#d32020'; x.lineWidth = 5; x.lineCap = 'round'; x.beginPath();
   if (kind === 'V') { x.moveTo(0, -L); x.lineTo(0, L); } else { x.moveTo(-L, 0); x.lineTo(L, 0); }
   x.stroke();
 }
-async function svvTrial(p, my) {
+async function svvTrial(p, my, train) {
   // 線の傾きは「いまのスマホの傾き」を差し引いて決める＝重力に対して毎回 p.start だけ傾いて出る（前の回でスマホが傾いたままでも、毎回 12〜20° 動かして合わせる）
   const t0 = performance.now(), r0 = phoneRoll() ?? 0, th = p.start - r0, S = [];
   svvLine(p.kind, th);
@@ -286,10 +297,11 @@ async function svvTrial(p, my) {
     const now = performance.now(), r = phoneRoll(), left = Math.ceil(SVV_SEC - (now - t0) / 1000);
     if (left !== shown) { $('svvMsg').innerHTML = `<span style="font-size:44px">${left}</span><small>顔に近づけたまま。合わせたら、そのまま止める</small>`; shown = left; }   // 秒数は読み上げない（毎秒しゃべると邪魔になる）
     if (r != null) S.push({ t: now, r });
+    if (train && now - t0 >= GUIDE_AT) svvLine(p.kind, th, r != null ? -r : null);   // 後半5秒：本当の縦・横を薄く重ねる（スマホの傾きに合わせて毎回描き直す）
     await sleep(30);
   }
   $('svvMsg').innerHTML = '';
-  const now = performance.now(), w = S.filter(o => now - o.t <= SVV_TAIL), roll = med(w.map(o => o.r));
+  const now = performance.now(), w = train ? S.filter(o => o.t - t0 >= GUIDE_AT - SVV_TAIL && o.t - t0 < GUIDE_AT) : S.filter(o => now - o.t <= SVV_TAIL), roll = med(w.map(o => o.r));   // トレーニングは見本が出る前の1.5秒
   if (w.length < 5 || !Number.isFinite(roll)) return { kind: p.kind, ok: false, start: r1(p.start) };
   const err = th + roll;
   return { kind: p.kind, ok: true, start: r1(p.start), err: r1(err), roll: r1(roll), off: Math.abs(err) > SVV_OFF, sway: r1(Math.max(...w.map(o => o.r)) - Math.min(...w.map(o => o.r))) };   // off：合わせられていない回／sway：最後の1.5秒の揺れ幅
@@ -297,9 +309,9 @@ async function svvTrial(p, my) {
 function note(t) { const m = $('msg'); m.textContent = t || ''; m.classList.toggle('show', !!t); if (t) say(t); }
 function showScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id)); scrollTo(0, 0); }
 
-async function stepSvv() {
-  const my = ++tok; note('');
-  $('bGo').disabled = true;
+async function stepSvv(train) {
+  const my = ++tok; note(''); TRAIN = !!train;
+  $('bGo').disabled = $('bTrain').disabled = true;
   try {
     VA.muted = false; VA.src = 'voice/unlock.mp3'; VA.play().catch(() => {});   // 押したときに一度鳴らしておかないと、後で音が出ない端末がある
     note('傾きのセンサーを準備しています…');   // 押したことがすぐ分かるように（2026-10-16 宮崎さん「ボタン押してもなかなかスタートしない」）
@@ -310,7 +322,7 @@ async function stepSvv() {
     if (my !== tok) return;
     if (phoneRoll() == null) return note(MOT && MOT.flat ? '端末を寝かせすぎています。画面を顔に向けて立てて持ってください' : 'この端末では傾きを読み取れませんでした');
     note('');
-    RUN = { started: new Date().toISOString(), ua: navigator.userAgent };
+    RUN = { started: new Date().toISOString(), ua: navigator.userAgent, mode: TRAIN ? 'train' : 'test' };
     const plan = [];   // 縦4・横4。始めの傾きは右・左を交互に（最初の向きはばらばら）、大きさは 12〜20° でばらばら
     for (const kind of ['V', 'H']) { const s0 = Math.random() < 0.5 ? 1 : -1; for (let i = 0; i < SVV_N; i++) plan.push({ kind, start: (i % 2 ? -s0 : s0) * (12 + Math.random() * 8) }); }
     svvShow(true); const T = [];
@@ -322,11 +334,11 @@ async function stepSvv() {
     for (let i = 0; i < plan.length; i++) {
       const p = plan[i];
       if (i === 0 || plan[i - 1].kind !== p.kind) { svvLine(null); svvMsg(p.kind === 'V' ? '線を<b>まっすぐ縦</b>に<small>スマホを傾けて合わせ、止める。1回10秒</small>' : '次は<b>まっすぐ横</b>に<small>スマホを傾けて合わせ、止める。1回10秒</small>'); await sleep(3000); if (my !== tok) return; svvMsg(''); }
-      T.push(await svvTrial(p, my)); if (my !== tok) return;
+      T.push(await svvTrial(p, my, TRAIN)); if (my !== tok) return;
       beep(660, 80); svvLine(null); await sleep(800);
     }
     svvShow(false); analyzeSvv(T);
-  } finally { if (my === tok) $('bGo').disabled = false; }
+  } finally { if (my === tok) $('bGo').disabled = $('bTrain').disabled = false; }
 }
 function analyzeSvv(T) {
   const one = (kind, th) => { const a = T.filter(t => t.kind === kind && t.ok && !t.off);   // 平均は、合わせられた回（ずれ10°以内）だけで出す
@@ -341,28 +353,30 @@ function analyzeSvv(T) {
   $('endCust').classList.toggle('hide', STAFF); $('endCustNote').classList.toggle('hide', STAFF); $('endStaff').classList.toggle('hide', !STAFF);
   const cust = (o, nm, end, dir) => !o.ok ? `<div class="res"><b>${nm}</b>：うまく読み取れませんでした（合わせられた回 ${o.n}）</div>`
     : `<div class="res"><b>${nm}</b>：${Math.abs(o.mean) < 0.05 ? 'ずれ 0.0°' : `${end}が<b>${o.mean > 0 ? dir[0] : dir[1]}へ ${Math.abs(o.mean).toFixed(1)}°</b>`}<br>${o.side ? `<b style="color:var(--red)">目安（${o.th}°未満）を超えるずれ</b>` : `目安（${o.th}°未満）の範囲内`}</div>`;
-  $('endCustNote').innerHTML = cust(V, '縦（SVV）', '線の上の端', ['右', '左']) + cust(H, '横（SVH）', '線の右の端', ['下', '上']) +
+  $('endCust').textContent = TRAIN ? '結果（トレーニング）' : '結果';
+  $('endCustNote').innerHTML = (TRAIN ? `<p class="small">見本の線が出る前（各回の3.5〜5秒）の、自分で合わせたずれです</p>` : '') + cust(V, '縦（SVV）', '線の上の端', ['右', '左']) + cust(H, '横（SVH）', '線の右の端', ['下', '上']) +
     `<p class="small">同じ条件（部屋の明るさ・持ち方・頭をまっすぐ）でくり返して比べる目安です。診断ではありません。<a href="about.html">このテストについて</a></p>`;
   if (!STAFF) return;
   const row = (o, nm, end) => !o.ok ? `${nm}：読み取れず（合わせられた回 ${o.n}）` : `${nm}：平均 <b>${o.mean > 0 ? '右' : '左'}へ ${Math.abs(o.mean).toFixed(1)}°</b>（${o.each.map(e => (e > 0 ? '+' : '') + e.toFixed(1)).join('・')}・ばらつき ±${o.sd}°）${end}`;
   const rd = (o, nm, organ, end) => o.ok && o.side ? `<br><b>${o.side}の耳石（${organ}寄り）</b>の働き低下の可能性 — ${nm}で${end}が${o.side}へ平均 ${Math.abs(o.mean).toFixed(1)}°（${o.th}°以上で異常）` : '';
   const jv = rd(V, '縦（SVV）', '球形嚢', '線の上の端'), jh = rd(H, '横（SVH）', '卵形嚢', '下がった端');
   const offN = T.filter(t => t.ok && t.off).length, ngN = T.filter(t => !t.ok).length;
-  $('endStaff').innerHTML = `<div class="done">結果（スタッフ用）</div>
+  $('endStaff').innerHTML = `<div class="done">結果（スタッフ用${TRAIN ? '・トレーニング' : ''}）</div>
   <div class="res">${row(V, '縦（SVV）', '（＋＝上の端が右）')}<br>${row(H, '横（SVH）', '（＋＝右の端が下）')}${offN || ngN ? `<br><span class="small">平均から外した回：10°以上外れた ${offN}回・読み取れなかった ${ngN}回</span>` : ''}</div>
   <div class="res judge">内部の読み（仮）：${jv || jh ? jv + jh : '<br>縦・横とも正常の範囲'}<br><span class="small">SVV は 2.5°以上・SVH は 1.5°以上で異常。SVV は線の上の端が、SVH は下がった端が、働きの落ちた耳石の側を向く。SVV＝球形嚢寄り・SVH＝卵形嚢寄り（目安）。延髄・橋なら同じ側、小脳・中脳より上なら反対側へ傾くことが多い（Vestibular Rehabilitation 印刷頁190）。本来は暗室かバケツで周りを隠して測る。スマホだけでは周りの縦横が見えるので、数字は仮</span></div>
   <textarea id="endText" readonly></textarea><button class="btn sub" id="bCopy">この結果をコピー</button>
   <p class="small">この端末に残っている記録：${n}件</p>`;
   const one2 = (o, nm) => o.ok ? `${nm} 平均${o.mean > 0 ? '右' : '左'}へ${Math.abs(o.mean).toFixed(1)}°（${o.each.map(e => (e > 0 ? '+' : '') + e.toFixed(1)).join('・')}）` : `${nm} —`;
-  $('endText').value = `SVV テスト（${RUN.ended.slice(0, 16).replace('T', ' ')}）\n${one2(V, '縦（SVV）')}／${one2(H, '横（SVH）')}（＋＝時計回り＝本人の右）\n内部の読み（仮）：${[V.ok && V.side ? V.side + 'の耳石（SVV）' : '', H.ok && H.side ? H.side + 'の耳石（SVH）' : ''].filter(Boolean).join('・') || '正常の範囲'}\n\n` + JSON.stringify(RUN);
+  $('endText').value = `SVV テスト${TRAIN ? '・トレーニング' : ''}（${RUN.ended.slice(0, 16).replace('T', ' ')}）\n${one2(V, '縦（SVV）')}／${one2(H, '横（SVH）')}（＋＝時計回り＝本人の右）\n内部の読み（仮）：${[V.ok && V.side ? V.side + 'の耳石（SVV）' : '', H.ok && H.side ? H.side + 'の耳石（SVH）' : ''].filter(Boolean).join('・') || '正常の範囲'}\n\n` + JSON.stringify(RUN);
   $('bCopy').onclick = () => copyText($('endText').value, $('bCopy'));
 }
 function saveRun() { try { const a = JSON.parse(localStorage.getItem('svv_runs') || '[]'); a.push(RUN); while (a.length > 30) a.shift(); localStorage.setItem('svv_runs', JSON.stringify(a)); return a.length; } catch (e) { return 0; } }
 async function copyText(t, b) { let ok = false; try { await navigator.clipboard.writeText(t); ok = true; } catch (e) { const a = $('endText'); if (a) { a.value = t; a.select(); try { ok = document.execCommand('copy'); } catch (_) {} } } b.textContent = ok ? 'コピーしました' : '上の枠を長押しでコピー'; }
 
-$('bGo').onclick = stepSvv;
-$('bAgain').onclick = () => { showScreen('s1'); stepSvv(); };
-$('svvStop').onclick = () => { tok++; svvShow(false); showScreen('s1'); $('bGo').disabled = false; note(''); };
+$('bGo').onclick = () => stepSvv(false);
+$('bTrain').onclick = () => stepSvv(true);
+$('bAgain').onclick = () => { showScreen('s1'); stepSvv(TRAIN); };
+$('svvStop').onclick = () => { tok++; svvShow(false); showScreen('s1'); $('bGo').disabled = $('bTrain').disabled = false; note(''); };
 $('tapStart').onclick = () => {
   try { VA.muted = false; VA.src = 'voice/unlock.mp3'; VA.play().catch(() => {}); } catch (e) {}
   $('splash').classList.add('hide'); $('app').setAttribute('aria-hidden', 'false'); showScreen('s1');
