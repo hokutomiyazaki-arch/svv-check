@@ -184,12 +184,12 @@
 // もとは ~/FNT-Apps/fnt-camera-check の「14. 線をまっすぐにする」（2026-10-15 宮崎さん）。2026-10-16 にこの1つだけを別アプリに切り出した。カメラは使わない。
 // 暗い画面に赤い線を1本、傾けて出す。本人はスマホを傾けて、線を「まっすぐ縦」（SVV）・「まっすぐ横」（SVH）に合わせて止める。
 // 線は画面に対して固定（バケツの内側の線と同じ）。止まったときの線の、重力に対する傾き＝画面上の線の角度＋スマホの傾き（加速度で重力の向きを取る）。
-// 縦4回・横4回。始めは右・左へ交互に 12〜20° 傾けておく（Carrick CNS05-22：半分ずつ反対から始める。Z-Health Next Evolution：傾けて渡し、右からと左からの両方）。
-// 読み（Z-Health 9S Next Evolution マニュアル p.27–28・スライド p.97）：平均のずれが SVV 2.5° 以上・SVH 1.5° 以上で異常。
+// 縦4回・横4回。始めは右・左へ交互に 12〜20° 傾けておく（右からと左からを半分ずつ。始めの位置で値が変わる：van der Waal 2024）。
+// 読み：平均のずれが SVV 2.5° 以上・SVH 1.5° 以上で異常。
 //   SVV は線の上の端が、SVH は下がった端が、働きの落ちた耳石の側を向く。どちらも「時計回り（＋）＝本人の右」。
-//   SVV は球形嚢寄り・SVH は卵形嚢寄り（Next Evolution 動画 Module 3）。ただし本（Vestibular Rehabilitation 印刷頁189）は「どちらかは特定できない」。
-//   中枢なら：延髄・橋（上部の橋より下）は同じ側、小脳・中脳より上は反対側へ傾くことが多い（Vestibular Rehabilitation 印刷頁190・Carrick CNS10 Handbook p.72）。
-// 本来は暗室かバケツで、周りの縦横の手がかりを消す。スマホの画面だけでは消し切れない（Carrick CNS09-14：アプリだけでは周りが見える）ので、仮の代わり。部屋を暗くし、画面を顔に近づけてもらう
+//   SVV は球形嚢寄り・SVH は卵形嚢寄りとして目安を出す。ただし本（Vestibular Rehabilitation 印刷頁189）は「どちらかは特定できない」。
+//   中枢なら：延髄・橋（上部の橋より下）は同じ側、小脳・中脳より上は反対側へ傾くことが多い（Vestibular Rehabilitation 印刷頁190）。
+// 本来は暗室かバケツで、周りの縦横の手がかりを消す。スマホの画面だけでは消し切れないので、仮の代わり。部屋を暗くし、画面を顔に近づけてもらう
 // 1回は10秒決め打ちで、残りの秒数を出す。読むのは最後の1.5秒の傾き（2026-10-15 宮崎さん「何秒やればいいかわからない。合わせる時間は10秒ぐらい」「何回もやって平均値」）。
 // お客さんの画面（ふつうの URL）には判定も数字も出さず「記録しました」だけ。?staff=1 で判定と数字を出す（もとのアプリと同じ）
 const $ = id => document.getElementById(id);
@@ -345,7 +345,7 @@ function analyzeSvv(T) {
   const offN = T.filter(t => t.ok && t.off).length, ngN = T.filter(t => !t.ok).length;
   $('endStaff').innerHTML = `<div class="done">結果（スタッフ用）</div>
   <div class="res">${row(V, '縦（SVV）', '（＋＝上の端が右）')}<br>${row(H, '横（SVH）', '（＋＝右の端が下）')}${offN || ngN ? `<br><span class="small">平均から外した回：10°以上外れた ${offN}回・読み取れなかった ${ngN}回</span>` : ''}</div>
-  <div class="res judge">内部の読み（仮）：${jv || jh ? jv + jh : '<br>縦・横とも正常の範囲'}<br><span class="small">Z-Health 9S Next Evolution（マニュアル p.27–28・スライド p.97）：SVV は 2.5°以上・SVH は 1.5°以上で異常。SVV は線の上の端が、SVH は下がった端が、働きの落ちた耳石の側を向く。SVV＝球形嚢寄り・SVH＝卵形嚢寄り（同 動画 Module 3）。延髄・橋なら同じ側、小脳・中脳より上なら反対側へ傾くことが多い（Vestibular Rehabilitation 印刷頁190・Carrick CNS10 Handbook p.72）。本来は暗室かバケツで周りを隠して測る。スマホだけでは周りの縦横が見えるので、数字は仮</span></div>
+  <div class="res judge">内部の読み（仮）：${jv || jh ? jv + jh : '<br>縦・横とも正常の範囲'}<br><span class="small">SVV は 2.5°以上・SVH は 1.5°以上で異常。SVV は線の上の端が、SVH は下がった端が、働きの落ちた耳石の側を向く。SVV＝球形嚢寄り・SVH＝卵形嚢寄り（目安）。延髄・橋なら同じ側、小脳・中脳より上なら反対側へ傾くことが多い（Vestibular Rehabilitation 印刷頁190）。本来は暗室かバケツで周りを隠して測る。スマホだけでは周りの縦横が見えるので、数字は仮</span></div>
   <textarea id="endText" readonly></textarea><button class="btn sub" id="bCopy">この結果をコピー</button>
   <p class="small">この端末に残っている記録：${n}件</p>`;
   const one2 = (o, nm) => o.ok ? `${nm} 平均${o.mean > 0 ? '右' : '左'}へ${Math.abs(o.mean).toFixed(1)}°（${o.each.map(e => (e > 0 ? '+' : '') + e.toFixed(1)).join('・')}）` : `${nm} —`;
