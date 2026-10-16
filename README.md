@@ -1,4 +1,6 @@
-# 線をまっすぐ（SVV・SVH）
+# SVV テスト（SVV・SVH）
+
+2026-10-16 に名前を「線をまっすぐ」から「SVV テスト」に替え、配色を黒にした（宮崎さん）。解説ページ `about.html`（論文・Vestibular Rehabilitation・Z-Health・Carrick から。出典つき）をアプリから開ける。
 
 暗い画面の赤い線を、スマホを傾けて「まっすぐ縦」（SVV＝主観的垂直）・「まっすぐ横」（SVH＝主観的水平）に合わせるチェック。
 FNT の PWA（GitHub Pages）。カメラは使わない。スマホの加速度（重力の向き）だけで測る。

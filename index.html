@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#0b1a20" />
+<meta name="theme-color" content="#000000" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="線をまっすぐ" />
+<meta name="apple-mobile-web-app-title" content="SVV テスト" />
 <meta name="description" content="暗い画面の赤い線を、スマホを傾けて「まっすぐ縦」「まっすぐ横」に合わせるチェック（SVV・SVH）。Functional Neuro Training。" />
-<title>線をまっすぐ（SVV・SVH） / Functional Neuro Training</title>
+<title>SVV テスト / Functional Neuro Training</title>
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
@@ -17,13 +17,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap" rel="stylesheet" />
 <style>
-  /* 配色・骨格は pinto-8（FNT 標準）に合わせる */
-  :root{ --bg0:#0b1a20; --bg1:#123138; --bg2:#16414a; --accent:#7fe0cd; --accent2:#3fa895; --accentInk:#06231d;
-    --ink:#f2faf7; --muted:#a8c6bf; --line:rgba(255,255,255,.12); --card:rgba(255,255,255,.07); --danger:#ffb4a8; }
+  /* 骨格は pinto-8（FNT 標準）に合わせる。配色は黒（2026-10-16 宮崎さん「背景色は緑じゃなくて黒にしてプロフェッショナルな感じ」）。差し色は測る線と同じ赤 */
+  :root{ --bg0:#000; --bg1:#0e0e10; --bg2:#18181b; --accent:#f2f2f3; --accent2:#c9c9cf; --accentInk:#0a0a0a; --red:#e2483d;
+    --ink:#f2f2f3; --muted:#a3a3a8; --line:rgba(255,255,255,.12); --card:rgba(255,255,255,.06); --danger:#ffb4a8; }
   *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
   html,body{ overflow-x:hidden; max-width:100%; }
   body{ font-family:"M PLUS Rounded 1c", system-ui, sans-serif; font-weight:700; color:var(--ink); line-height:1.7;
-    background:radial-gradient(120% 90% at 50% 6%, var(--bg2) 0%, var(--bg1) 44%, var(--bg0) 100%); background-attachment:fixed;
+    background:var(--bg0);
     min-height:100vh; min-height:100dvh;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
   body.playing{ overflow:hidden; touch-action:none; }
@@ -32,11 +32,13 @@
   :focus-visible{ outline:3px solid var(--accent); outline-offset:3px; border-radius:8px; }
 
   #splash{ position:fixed; inset:0; z-index:1000; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:32px;
-    background:radial-gradient(120% 90% at 50% 20%, var(--bg2) 0%, var(--bg1) 45%, var(--bg0) 100%); transition:opacity .45s ease, visibility .45s ease; }
+    background:var(--bg0); transition:opacity .45s ease, visibility .45s ease; }
   #splash.hide{ opacity:0; visibility:hidden; pointer-events:none; }
   #splash img{ width:132px; height:132px; margin-bottom:22px; border-radius:26px; }
   #splash .fnt{ font-size:13px; letter-spacing:.24em; color:var(--muted); margin-bottom:14px; }
-  #splash h1{ font-size:30px; font-weight:800; color:var(--accent); margin-bottom:10px; }
+  #splash h1{ font-size:34px; font-weight:800; color:var(--ink); letter-spacing:.04em; margin-bottom:10px; }
+  #splash h1::after{ content:""; display:block; width:44px; height:3px; margin:12px auto 0; border-radius:2px; background:var(--red); }
+  #splash .aboutLink{ margin-top:16px; font-size:14px; color:var(--muted); text-decoration:none; border-bottom:1px solid var(--line); padding-bottom:2px; }
   #splash .lead{ font-size:14px; color:var(--muted); margin-bottom:30px; }
   #splash .tapstart{ min-height:52px; padding:14px 34px; border-radius:16px; font-size:17px; font-weight:800; color:var(--accentInk);
     background:linear-gradient(180deg,var(--accent),var(--accent2)); animation:breathe 2.4s ease-in-out infinite; }
@@ -55,12 +57,13 @@
   main{ flex:1; display:flex; flex-direction:column; padding:8px 20px 4px; }
   .screen{ display:none; flex-direction:column; }
   .screen.active{ display:flex; }
-  .step-label{ font-size:12px; letter-spacing:.16em; color:var(--accent); margin-bottom:8px; }
+  .step-label{ font-size:12px; letter-spacing:.16em; color:var(--red); margin-bottom:8px; }
   h2{ font-size:23px; font-weight:800; line-height:1.5; margin-bottom:14px; }
   .setupList{ list-style:none; margin:10px 0 18px; display:flex; flex-direction:column; gap:12px; }
   .setupList li{ display:flex; gap:12px; align-items:flex-start; padding:14px 16px; border-radius:14px; background:var(--card); border:1px solid var(--line); font-size:15px; }
   .setupList .no{ flex:none; width:26px; height:26px; border-radius:50%; background:var(--accent); color:var(--accentInk); font-weight:800; font-size:14px; display:flex; align-items:center; justify-content:center; }
   .btn{ width:100%; min-height:56px; border-radius:16px; font-size:18px; font-weight:800; color:var(--accentInk); background:linear-gradient(180deg,var(--accent),var(--accent2)); margin-top:10px; }
+  a.btn{ display:flex; align-items:center; justify-content:center; text-decoration:none; }
   .btn.sub{ background:var(--card); color:var(--ink); border:1px solid var(--line); font-size:16px; min-height:50px; }
   .msg{ margin:12px 0; padding:14px 16px; border-radius:14px; background:rgba(255,180,168,.12); border:1px solid var(--danger); font-size:15px; display:none; }
   .msg.show{ display:block; }
@@ -90,7 +93,8 @@
   .side .top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
   .side .top b{ font-size:16px; font-weight:800; }
   .side .closeBtn{ width:44px; height:44px; border-radius:12px; background:var(--card); color:var(--ink); font-size:20px; }
-  .side h4{ font-size:12px; letter-spacing:.14em; color:var(--accent); margin:18px 0 10px; }
+  .side h4{ font-size:12px; letter-spacing:.14em; color:var(--red); margin:18px 0 10px; }
+  .side a.sideBtn{ display:flex; align-items:center; justify-content:center; text-decoration:none; }
   .side .box{ font-size:13px; color:var(--muted); line-height:1.95; }
   .side .box ol{ padding-left:20px; }
   .side .sideBtn{ width:100%; min-height:46px; border-radius:12px; background:var(--card); color:var(--ink); border:1px solid var(--line); font-size:14px; margin-top:8px; }
@@ -103,19 +107,20 @@
 </head>
 <body>
 
-<div id="splash" role="dialog" aria-label="線をまっすぐを開始">
+<div id="splash" role="dialog" aria-label="SVV テストを開始">
   <img src="FNT512.png" alt="FNT ロゴ" />
   <div class="fnt">FUNCTIONAL NEURO TRAINING</div>
-  <h1>線をまっすぐ</h1>
+  <h1>SVV テスト</h1>
   <p class="lead">暗い画面の赤い線を、まっすぐ縦・まっすぐ横に。</p>
   <button class="tapstart" id="tapStart">タップで開始</button>
   <button class="muteToggle" id="muteSplash" type="button">🔊 音声オン</button>
+  <a class="aboutLink" href="about.html">このテストについて（意味・読み方・出典）</a>
   <div class="copy">© Functional Neuro Training / Legrandchariot</div>
 </div>
 
 <div class="app" id="app" aria-hidden="true">
   <header>
-    <div class="logo"><img src="FNT512-transparent.png" alt="" /><b>線をまっすぐ</b><span class="staffTag hide" id="staffTag">スタッフ</span></div>
+    <div class="logo"><img src="FNT512-transparent.png" alt="" /><b>SVV テスト</b><span class="staffTag hide" id="staffTag">スタッフ</span></div>
     <button class="menuBtn" id="menuBtn" aria-label="メニューを開く">☰</button>
   </header>
   <main>
@@ -130,6 +135,7 @@
       </ul>
       <div class="msg" id="msg"></div>
       <button class="btn" id="bGo">始める</button>
+      <a class="btn sub" href="about.html">このテストについて</a>
     </section>
 
     <section class="screen" id="s2">
@@ -150,6 +156,8 @@
 <div class="overlay" id="overlay"></div>
 <nav class="side" id="side" aria-label="メニュー" aria-hidden="true">
   <div class="top"><b>メニュー</b><button class="closeBtn" id="closeMenu" aria-label="メニューを閉じる">×</button></div>
+  <h4>このテストについて</h4>
+  <a class="sideBtn" href="about.html">意味・読み方・出典を見る</a>
   <h4>音声</h4>
   <button class="sideBtn" id="muteSide">🔊 音声オン</button>
   <h4>やり方</h4>
@@ -336,7 +344,7 @@ function analyzeSvv(T) {
   <textarea id="endText" readonly></textarea><button class="btn sub" id="bCopy">この結果をコピー</button>
   <p class="small">この端末に残っている記録：${n}件</p>`;
   const one2 = (o, nm) => o.ok ? `${nm} 平均${o.mean > 0 ? '右' : '左'}へ${Math.abs(o.mean).toFixed(1)}°（${o.each.map(e => (e > 0 ? '+' : '') + e.toFixed(1)).join('・')}）` : `${nm} —`;
-  $('endText').value = `線をまっすぐ（${RUN.ended.slice(0, 16).replace('T', ' ')}）\n${one2(V, '縦（SVV）')}／${one2(H, '横（SVH）')}（＋＝時計回り＝本人の右）\n内部の読み（仮）：${[V.ok && V.side ? V.side + 'の耳石（SVV）' : '', H.ok && H.side ? H.side + 'の耳石（SVH）' : ''].filter(Boolean).join('・') || '正常の範囲'}\n\n` + JSON.stringify(RUN);
+  $('endText').value = `SVV テスト（${RUN.ended.slice(0, 16).replace('T', ' ')}）\n${one2(V, '縦（SVV）')}／${one2(H, '横（SVH）')}（＋＝時計回り＝本人の右）\n内部の読み（仮）：${[V.ok && V.side ? V.side + 'の耳石（SVV）' : '', H.ok && H.side ? H.side + 'の耳石（SVH）' : ''].filter(Boolean).join('・') || '正常の範囲'}\n\n` + JSON.stringify(RUN);
   $('bCopy').onclick = () => copyText($('endText').value, $('bCopy'));
 }
 function saveRun() { try { const a = JSON.parse(localStorage.getItem('svv_runs') || '[]'); a.push(RUN); while (a.length > 30) a.shift(); localStorage.setItem('svv_runs', JSON.stringify(a)); return a.length; } catch (e) { return 0; } }
