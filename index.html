@@ -83,9 +83,14 @@
   /* 首の傾きチェック：前のカメラで顔を映す（SVV の前にやる。2026-10-24） */
   #tilt{ position:fixed; inset:0; display:none; z-index:310; background:#000; }
   #tilt video{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; transform:scaleX(-1); }
+  #tiltO{ position:absolute; inset:0; width:100%; height:100%; }
+  #tiltBtns{ position:absolute; left:50%; bottom:calc(64px + env(safe-area-inset-bottom)); transform:translateX(-50%); width:min(86vw,420px); }
+  #tiltBtns button{ display:block; width:100%; margin:6px 0; font:inherit; font-size:18px; font-weight:800; padding:15px; border-radius:999px; border:0; background:#fff; color:#111; }
+  #tiltBtns button.sub{ background:transparent; color:#fff; border:1px solid rgba(255,255,255,.5); }
+  #tiltBtns button:disabled{ opacity:.4; }
   #tiltMsg{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:min(92vw,520px); text-align:center; font-weight:800; font-size:clamp(22px,6vw,30px); line-height:1.45; color:#fff; padding:14px 16px; border-radius:18px; background:rgba(0,0,0,.6); }
   #tiltMsg:empty{ display:none; }
-  #tiltMsg.low{ top:80%; }
+  #tiltMsg.low{ top:22%; }
   #tiltMsg small{ display:block; font-size:15px; font-weight:600; color:#ddd; margin-top:6px; }
   #tiltStop{ position:absolute; right:calc(14px + env(safe-area-inset-right)); bottom:calc(14px + env(safe-area-inset-bottom)); padding:8px 14px; border-radius:10px; background:rgba(0,0,0,.55); color:#ddd; font-size:13px; border:1px solid rgba(255,255,255,.3); }
 
@@ -165,7 +170,7 @@
 </div>
 
 <div id="svv"><canvas id="svvC"></canvas><div id="svvMsg"></div><button id="svvStop">やめる</button></div>
-<div id="tilt"><video id="tiltV" playsinline muted autoplay></video><div id="tiltMsg"></div><button id="tiltStop">やめる</button></div>
+<div id="tilt"><video id="tiltV" playsinline muted autoplay></video><canvas id="tiltO"></canvas><div id="tiltMsg"></div><div id="tiltBtns"></div><button id="tiltStop">やめる</button></div>
 
 <div class="overlay" id="overlay"></div>
 <nav class="side" id="side" aria-label="メニュー" aria-hidden="true">
@@ -309,73 +314,188 @@ function wakeOff() { try { wake && wake.release(); } catch (e) {} wake = null; }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && document.body.classList.contains('playing')) wakeOn(); });
 
 // ── 首の傾きチェック（元：hanasaki-awase「③ ふだんの首の傾き」。顔の点は MediaPipe。映像は端末の外へ送らない）
-// 楽にした姿勢のまま5秒。目じりを結んだ線の傾き（＋＝本人の右へ）の中央値。スマホ自体の傾きも測り、首の傾きと区別できないときは読まない
+// 🔴 2026-10-24 夜 宮崎さん「『顔が見つからなかった』と出る。今までのアプリで使用していた仕組みをそのまま入れるんだよ。新しく作っちゃダメ」。
+//    最初の版は自前で書き直していて、GPU で顔の点が取れない端末で CPU に切り替える部分（元の 2026-10-14 の直し）や、顔の点を映して確かめる画面が抜けていた。
+//    いまは hanasaki-awase の load・startCam・frameCanvas・fitOverlay・loop・frame・stepTilt をそのまま写してある（あちらを直したら、ここにも移す）。
+//    違うのは、この画面の部品の名前（tiltV・tiltO・tiltMsg・tiltBtns）と、スマホの傾きを SVV の傾きのセンサー（phoneRoll の大きさ）から取ることだけ
 const TILT_TH = 3;   // 度（仮。元のアプリと同じ）
-let FL = null, camOn = false, LAST = null, REC = null, lastT = -1;
+const WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm';
+const MODEL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+const video = $('tiltV'), ov = $('tiltO'), oc = ov.getContext('2d');
+let lm = null, last = null, lastT = -1, rec = null;   // last = 直近の顔の点（画素）
+// ── 顔の点の番号（右・左は本人から見た向き。起動後に実際の位置で確かめて入れ替える）
+let P = { eyeOut: [33, 263], eyeIn: [133, 362], mouth: [61, 291], brow: [105, 334], lidUp: [159, 386], lidDn: [145, 374], iris: [468, 473], cheek: [234, 454] };
+let sideChecked = false;
+// GPU で顔の点が取れない端末がある（Android の Chrome で、顔が映っていても点が出なかった）。取れない・エラーが続いたら CPU に切り替える
+let delegate = '', toCPU = async () => {}, switching = false, gpuMiss = 0, lmReady = null;
+async function load() {
+  const { FilesetResolver, FaceLandmarker } = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/vision_bundle.mjs');
+  const fs = await FilesetResolver.forVisionTasks(WASM);
+  const opt = d => ({ baseOptions: { modelAssetPath: MODEL, delegate: d }, runningMode: 'VIDEO', numFaces: 1, outputFaceBlendshapes: true, outputFacialTransformationMatrixes: true });
+  try { lm = await FaceLandmarker.createFromOptions(fs, opt('GPU')); delegate = 'GPU'; }
+  catch (e) { lm = await FaceLandmarker.createFromOptions(fs, opt('CPU')); delegate = 'CPU'; }
+  toCPU = async () => { if (delegate === 'CPU' || switching) return; switching = true; try { lm = await FaceLandmarker.createFromOptions(fs, opt('CPU')); delegate = 'CPU'; } finally { switching = false; } };
+}
+const loadFace = () => lmReady || (lmReady = load().catch(e => { lmReady = null; window.__loadError = e.message; throw e; }));
+loadFace().catch(() => {});   // 元のアプリと同じく、開いたときから読み込んでおく（押してから読むと待たされる）
+function px(l) { return { x: l.x * video.videoWidth, y: l.y * video.videoHeight }; }
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+// 目の線を水平に回して、目の間の長さを1にした座標（顔の傾き・カメラとの距離に左右されない）。
+// x は「本人の右 → 本人の左」が＋（写っている映像のまま。鏡にしていない）
+function frame(pts, E = P.eyeOut) {
+  const a = pts[E[0]], b = pts[E[1]];
+  const c = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, d = dist(a, b);
+  let ang = Math.atan2(b.y - a.y, b.x - a.x);
+  if (ang > Math.PI / 2) ang -= Math.PI; else if (ang < -Math.PI / 2) ang += Math.PI;
+  const cs = Math.cos(-ang), sn = Math.sin(-ang);
+  const f = p => { const x = p.x - c.x, y = p.y - c.y; return { x: (x * cs - y * sn) / d, y: (x * sn + y * cs) / d }; };
+  const ci = Math.cos(ang), si = Math.sin(ang);
+  const inv = q => ({ x: c.x + (q.x * ci - q.y * si) * d, y: c.y + (q.x * si + q.y * ci) * d });
+  return { f, inv, d, ang, c };
+}
+// ── カメラ（元の startCam・releaseCam。画面を離れたらすぐ手放す）
+let camWanted = false, looping = false;
+async function startCam() {
+  camWanted = true;
+  if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; }
+  const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 60 } }, audio: false });
+  video.srcObject = s;
+  await video.play();
+  if (!looping) { looping = true; loop(); }
+}
+function releaseCam() { if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; } }
+function camStop() { camWanted = false; releaseCam(); last = null; }
+addEventListener('pagehide', releaseCam);
+// 顔の読み取りには、映像をいったん映像と同じ大きさのキャンバスに写してから渡す（元：Android の Chrome で video をそのまま渡すと点がずれた）
 const detC = document.createElement('canvas'), detX = detC.getContext('2d');
-async function faceLoad() {   // 押したときに初めて読み込む（SVV だけのときは読まない）
-  if (FL) return;
-  const V = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/vision_bundle.mjs');
-  const fs = await V.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm');
-  const opt = d => ({ baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task', delegate: d }, runningMode: 'VIDEO', numFaces: 1 });
-  try { FL = await V.FaceLandmarker.createFromOptions(fs, opt('GPU')); } catch (e) { FL = await V.FaceLandmarker.createFromOptions(fs, opt('CPU')); }
+function frameCanvas() {
+  const w = video.videoWidth, h = video.videoHeight;
+  if (detC.width !== w || detC.height !== h) { detC.width = w; detC.height = h; }
+  detX.drawImage(video, 0, 0, w, h);
+  return detC;
 }
-async function camStart() {
-  const v = $('tiltV'), s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
-  v.srcObject = s; await v.play(); camOn = true; LAST = null; camLoop();
+let OVU = 1;
+function fitOverlay() {
+  const W = ov.clientWidth, H = ov.clientHeight, r = window.devicePixelRatio || 1, vw = video.videoWidth, vh = video.videoHeight;
+  const cw = Math.round(W * r), ch = Math.round(H * r);
+  if (ov.width !== cw || ov.height !== ch) { ov.width = cw; ov.height = ch; }
+  oc.setTransform(1, 0, 0, 1, 0, 0); oc.clearRect(0, 0, cw, ch);
+  if (!vw || !vh || !W || !H) return;
+  const k = Math.min(W / vw, H / vh), ox = (W - vw * k) / 2, oy = (H - vh * k) / 2;
+  oc.setTransform(-k * r, 0, 0, k * r, (ox + vw * k) * r, oy * r);
+  OVU = 1 / k;
 }
-function camStop() { camOn = false; const v = $('tiltV'); if (v.srcObject) { v.srcObject.getTracks().forEach(t => t.stop()); v.srcObject = null; } LAST = null; }
-function camLoop() {
-  if (!camOn) return;
-  const v = $('tiltV');
-  if (v.readyState >= 2 && v.currentTime !== lastT) {
-    lastT = v.currentTime;
-    const w = v.videoWidth, h = v.videoHeight;   // いったんキャンバスに写して渡す（Android の Chrome で video をそのまま渡すと点がずれた。元のアプリと同じ）
-    if (detC.width !== w || detC.height !== h) { detC.width = w; detC.height = h; }
-    detX.drawImage(v, 0, 0, w, h);
-    let r = null; try { r = FL.detectForVideo(detC, performance.now()); } catch (e) {}
-    const f = r && r.faceLandmarks && r.faceLandmarks[0];
-    LAST = f ? f.map(l => ({ x: l.x * w, y: l.y * h })) : null;
-    if (LAST && REC) REC.push(LAST);
+function loop() {
+  if (!camWanted) { looping = false; last = null; return; }
+  if (lm && video.readyState >= 2 && video.currentTime !== lastT) {
+    lastT = video.currentTime;
+    const t = performance.now();
+    let r = null;
+    if (!switching) { try { r = lm.detectForVideo(frameCanvas(), t); } catch (e) { window.__detErr = e.message; toCPU(); } }
+    const got = !!(r && r.faceLandmarks && r.faceLandmarks[0]);
+    gpuMiss = got ? 0 : gpuMiss + 1;
+    if (delegate === 'GPU' && gpuMiss > 45) toCPU();   // GPU で約3秒続けて顔が取れなければ、CPU に切り替える（一度だけ）
+    window.__delegate = delegate;
+    fitOverlay();
+    if (got) {
+      const pts = r.faceLandmarks[0].map(px);
+      if (!sideChecked) {   // 写っている映像（鏡にしていない）では、本人の右は画面の左＝x が小さい
+        if (pts[33].x > pts[263].x) for (const k in P) P[k] = [P[k][1], P[k][0]];
+        sideChecked = true;
+      }
+      last = pts; window.__last = pts;
+      const u = OVU;   // 顔の点を映して、読めていることを本人が見て分かるようにする（元と同じ）
+      oc.fillStyle = 'rgba(90,209,139,.9)';
+      for (let i = 0; i < pts.length; i += 2) oc.fillRect(pts[i].x - 1.3 * u, pts[i].y - 1.3 * u, 2.6 * u, 2.6 * u);
+      if (rec) rec.push({ t, pts });
+    } else last = null;
+    window.__frames = (window.__frames || 0) + 1;
+    window.__faceSeen = (window.__faceSeen || 0) + (last ? 1 : 0);
   }
-  requestAnimationFrame(camLoop);
+  requestAnimationFrame(loop);
 }
-document.addEventListener('visibilitychange', () => { if (document.hidden && camOn) { tok++; camStop(); tiltShow(false); } });   // 画面を離れたらカメラを手放す
-// 2点を結んだ線の傾き（度・＋＝本人の右が下がる＝右へ傾く）。左右どちらから結んでも同じ値になるよう ±90° にたたむ
-const lineDeg = (a, b) => { let g = Math.atan2(b.y - a.y, b.x - a.x); if (g > Math.PI / 2) g -= Math.PI; else if (g < -Math.PI / 2) g += Math.PI; return -g * 180 / Math.PI; };
+document.addEventListener('visibilitychange', () => { if (document.hidden && camWanted) { tok++; camStop(); tiltShow(false); } });   // 画面を離れたらカメラを手放す
+const phoneDeg = () => { const r = phoneRoll(); return r == null ? null : Math.abs(r); };   // 元の phoneDeg と同じ（左右の傾きの大きさ・向きは見ない）
+async function record(ms, each, my) { const t0 = performance.now(); rec = []; while (my === tok && performance.now() - t0 < ms) { if (each) each(); await sleep(50); } const r = rec || []; rec = null; return r; }
 const tiltWord = d => d == null || !Number.isFinite(d) ? '—' : Math.abs(d) < 0.5 ? 'ほぼまっすぐ' : `${d > 0 ? '右' : '左'}へ ${Math.abs(d).toFixed(1)}°`;
-function tiltShow(on) { $('tilt').style.display = on ? 'block' : 'none'; document.body.classList.toggle('playing', on); on ? wakeOn() : wakeOff(); if (!on) tiltMsg(''); }
-function tiltMsg(html, cls, speak = true) { const m = $('tiltMsg'); m.innerHTML = html; m.className = cls || ''; if (html && speak) say(html); }
+function tiltShow(on) { $('tilt').style.display = on ? 'block' : 'none'; document.body.classList.toggle('playing', on); on ? wakeOn() : wakeOff(); if (!on) { tiltMsg(''); $('tiltBtns').innerHTML = ''; } }
+function tiltMsg(html, cls, voice) { const m = $('tiltMsg'); m.innerHTML = html; m.className = cls || ''; if (html && voice !== false) say(voice ?? html); }
+const tiltBtn = (label, cls) => new Promise(res => { const b = document.createElement('button'); b.textContent = label; b.className = cls || ''; b.onclick = () => { $('tiltBtns').innerHTML = ''; res(); }; $('tiltBtns').appendChild(b); });
+const bc = document.createElement('canvas'), bx = bc.getContext('2d', { willReadFrequently: true });
+function brightness() {
+  bc.width = 32; bc.height = 24; bx.drawImage(video, 0, 0, 32, 24);
+  const d = bx.getImageData(8, 4, 16, 16).data; let s = 0;
+  for (let i = 0; i < d.length; i += 4) s += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  return s / (d.length / 4);
+}
+// 0. 位置合わせ（元の stepAlign のまま。顔が映っているか・距離・向き・明るさを確かめてから③に入る）
+async function tiltAlign(my) {
+  let go = false; const mk = (label, cls) => { const b = document.createElement('button'); b.textContent = label; b.className = cls || ''; b.onclick = () => { go = true; }; $('tiltBtns').appendChild(b); return b; };
+  $('tiltBtns').innerHTML = '';
+  const b = mk('次へ'); b.disabled = true;
+  const skip = mk('このまま進む', 'sub'); skip.style.display = 'none';
+  const t0 = performance.now();
+  let okCount = 0, unlocked = false;
+  while (my === tok && !go) {
+    const items = [];
+    if (!last) items.push(['顔が見つかりません。カメラに顔を向けてください', false]);
+    else {
+      const { d, f, ang } = frame(last), w = video.videoWidth;
+      const nose = last[1], cl = last[P.cheek[0]], cr = last[P.cheek[1]];
+      const yaw = (f(nose).x - f(cl).x) / (f(cr).x - f(cl).x);   // 0.5 で正面。傾きを戻した座標で取る
+      const roll = Math.abs(ang * 180 / Math.PI), size = d / w;
+      items.push([size < 0.10 ? 'もう少し近づいて' : size > 0.50 ? 'もう少し離れて' : '距離：ちょうどいい', size >= 0.10 && size <= 0.50]);
+      const yOk = Math.abs(yaw - 0.5) <= 0.12, rOk = roll <= 12;
+      items.push([yOk && rOk ? '向き：まっすぐ' : !yOk ? '顔をまっすぐ正面に' : '首のかしげをまっすぐに', yOk && rOk]);
+      const br = brightness();
+      items.push([br < 45 ? '暗いです。明るい所へ' : '明るさ：OK', br >= 45]);
+    }
+    const all = items.length === 3 && items.every(i => i[1]);
+    okCount = all ? okCount + 1 : Math.max(0, okCount - 1);
+    if (okCount >= 5) unlocked = true;                          // 一度そろえば、次へは押せたままにする
+    b.disabled = !unlocked;
+    skip.style.display = !unlocked && last && performance.now() - t0 > 5000 ? '' : 'none';   // 顔が写っていないときは出さない
+    const head = all || unlocked ? '<span style="color:#5ad18b">OK ✓</span><br>下の「次へ」を押してください' : '顔の位置を合わせます';
+    tiltMsg(`${head}<small>${items.map(([t, ok]) => `<span style="color:${ok ? '#5ad18b' : '#ff8a65'}">${ok ? '●' : '○'} ${t}</span>`).join('<br>')}</small>`, 'low', all || unlocked ? 'OK。下の「次へ」を押してください' : '顔の位置を合わせます。' + items.filter(i => !i[1]).map(i => i[0]).join('。'));
+    await sleep(150);
+  }
+  $('tiltBtns').innerHTML = '';
+}
 async function tiltCheck(my) {   // 戻り値：測った値／{ err }／null（やめた）
   tiltShow(true); tiltMsg('カメラを準備しています…', '', false);
-  try { await faceLoad(); if (my !== tok) return null; await camStart(); }
+  try { await loadFace(); if (my !== tok) return null; await startCam(); }
   catch (e) { camStop(); tiltShow(false); return { err: `カメラを使えませんでした（${e.name || e.message}）。カメラを許可するか、「SVV だけ始める」で進めてください` }; }
   try {
-    tiltMsg('楽にして<br>画面を見るだけ<small>スマホは縦にまっすぐ</small>'); await sleep(3000); if (my !== tok) return null;
-    let w0 = performance.now(); while (my === tok && !LAST && performance.now() - w0 < 5000) await sleep(100);
-    if (my !== tok) return null;
-    if (!LAST) return { err: '顔が見つかりませんでした。顔を画面に入れて、もう一度どうぞ' };
-    const t1 = performance.now(); let okN = 0;   // スマホがまっすぐになるまで待つ（測れない・8秒たったら、そのまま進む）
-    while (my === tok && performance.now() - t1 < 8000) { const r = phoneRoll(), p = r == null ? null : Math.abs(r); if (p == null && performance.now() - t1 > 1500) break;
-      okN = p != null && p <= 2 ? okN + 1 : 0; if (okN >= 5) break;
-      tiltMsg(`スマホを<br>まっすぐ縦に<small>${p != null ? `スマホの傾き ${p.toFixed(1)}°（2°以内に）` : ''}</small>`, '', false); say('スマホをまっすぐ縦に'); await sleep(150); }
-    if (my !== tok) return null;
-    tiltMsg('楽にしたまま<br>画面を見ていてください', 'low');
-    const ph = [], t2 = performance.now(); REC = [];
-    while (my === tok && performance.now() - t2 < 5000) { const r = phoneRoll(); if (r != null) ph.push(Math.abs(r)); await sleep(50); }
-    const R = REC; REC = null;
-    if (my !== tok) return null;
-    if (R.length < 15) return { err: '顔が見えている時間が短すぎました。顔を画面に入れて、もう一度どうぞ' };
-    const ang = R.map(p => lineDeg(p[33], p[263])), mo = R.map(p => lineDeg(p[61], p[291]));
-    const deg = med(ang), phone = ph.length ? med(ph) : null, nt = []; let over = null;
-    if (Math.abs(deg) >= TILT_TH) {
-      if (phone != null && phone >= Math.abs(deg) - 1) nt.push(`スマホの傾き ${phone.toFixed(1)}° と区別できないので読まない`);
-      else over = deg > 0 ? '右' : '左';
+    await tiltAlign(my); if (my !== tok) return null;
+    let why = '';
+    for (;;) {   // 元の stepTilt：「始める」→ 顔を待つ → スマホをまっすぐ → 5秒。顔が取れなければ「もう一度」
+      tiltMsg(why ? `${why}<small>顔を画面に入れて、もう一度どうぞ${STAFF ? `<br>確かめ用：顔の点の読み取り ${delegate}・${window.__faceSeen || 0}／${window.__frames || 0}コマ${window.__detErr ? '・' + window.__detErr : ''}` : ''}</small>` : '<b>楽にして</b><br>画面を見るだけ<small>スマホは縦にまっすぐ</small>', 'low', why ? `${why}<small>顔を画面に入れて、もう一度どうぞ</small>` : undefined);
+      await tiltBtn(why ? 'もう一度' : '始める'); if (my !== tok) return null;
+      let w0 = performance.now(); while (my === tok && !last && performance.now() - w0 < 5000) await sleep(100);
+      if (my !== tok) return null;
+      if (!last) { why = '顔が見つかりませんでした'; continue; }
+      const t1 = performance.now(); let okN = 0;   // スマホがまっすぐになるまで待つ（測れない端末・8秒たったら、そのまま進む）
+      while (my === tok && performance.now() - t1 < 8000) { const p = phoneDeg(); if (p == null && performance.now() - t1 > 1500) break;
+        okN = p != null && p <= 2 ? okN + 1 : 0; if (okN >= 5) break;
+        tiltMsg(`スマホを<br>まっすぐ縦に<small>${p != null ? `スマホの傾き ${p.toFixed(1)}°（2°以内に）` : ''}</small>`, '', 'スマホをまっすぐ縦に'); await sleep(150); }
+      if (my !== tok) return null;
+      tiltMsg('楽にしたまま<br>画面を見ていてください', 'low');
+      const ph = [], r = await record(5000, () => { const p = phoneDeg(); if (p != null) ph.push(p); }, my);
+      if (my !== tok) return null;
+      if (r.length < 15) { why = '顔が見えている時間が短すぎました'; continue; }
+      // frame().ang は 本人の右目→左目 の線の向き。右目が下がる（本人の右へ傾く）と負になるので、符号を返して ＋＝右へ
+      const ang = r.map(({ pts }) => -frame(pts).ang * 180 / Math.PI);
+      const mo = r.map(({ pts }) => { const a = pts[P.mouth[0]], b = pts[P.mouth[1]]; return -Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI; });
+      const deg = med(ang), phone = ph.length ? med(ph) : null, note = []; let over = null;
+      if (Math.abs(deg) >= TILT_TH) {
+        if (phone != null && phone >= Math.abs(deg) - 1) note.push(`スマホの傾き ${phone.toFixed(1)}° と区別できないので読まない`);
+        else over = deg > 0 ? '右' : '左';
+      }
+      if (phone == null) note.push('スマホの傾きは測れていない（この端末・ブラウザでは取れない）');
+      beep(660, 80);
+      return { deg: r1(deg), sd: r1(sd(ang)), mouthDeg: r1(med(mo)), phone: r1(phone), over, note: note.join('／') || null, threshold: TILT_TH, n: r.length, delegate };
     }
-    if (phone == null) nt.push('スマホの傾きは測れていない');
-    beep(660, 80);
-    return { deg: r1(deg), sd: r1(sd(ang)), mouthDeg: r1(med(mo)), phone: r1(phone), over, note: nt.join('／') || null, threshold: TILT_TH, n: R.length };
-  } finally { REC = null; camStop(); if (my === tok) tiltShow(false); }
+  } finally { rec = null; camStop(); if (my === tok) tiltShow(false); }
 }
 const tiltLine = T => !T ? '' : `<div class="res"><b>首の傾き</b>（目じりを結んだ線）：<b>${tiltWord(T.deg)}</b><br>${T.over ? `<b style="color:var(--red)">${T.over}へ ${Math.abs(T.deg).toFixed(1)}° 傾いています</b>（${TILT_TH}°以上）` : `${TILT_TH}°より小さい傾きです`}<br><span class="small">ぶれ ±${T.sd}°・口角の線 ${tiltWord(T.mouthDeg)}・スマホの傾き ${T.phone != null ? T.phone + '°' : '—'}${T.note ? '<br>※' + T.note : ''}<br>目安：${TILT_TH}°以上を「傾きあり」とする（仮）。右・左は本人から見た向き</span></div>`;
 
