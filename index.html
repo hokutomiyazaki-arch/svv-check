@@ -179,6 +179,7 @@
   <div class="top"><b>メニュー</b><button class="closeBtn" id="closeMenu" aria-label="メニューを閉じる">×</button></div>
   <h4>このテストについて</h4>
   <a class="sideBtn" href="about.html">意味・読み方・出典を見る</a>
+  <a class="sideBtn" href="pro.html">プロの方へ：お客さんでどう読むか</a>
   <h4>音声</h4>
   <button class="sideBtn" id="muteSide">🔊 音声オン</button>
   <h4>やり方</h4>
@@ -513,6 +514,7 @@ async function tiltCheck(my) {   // 戻り値：測った値／{ err }／null（
 const tiltLine = T => !T ? '' : `<div class="res"><b>首の傾き</b>（目じりを結んだ線）：<b>${tiltWord(T.deg)}</b><br>${T.over ? `<b style="color:var(--red)">${T.over}へ ${Math.abs(T.deg).toFixed(1)}° 傾いています</b>（${TILT_TH}°以上）` : `${TILT_TH}°より小さい傾きです`}<br><span class="small">ぶれ ±${T.sd}°・口角の線 ${tiltWord(T.mouthDeg)}・スマホの傾き ${T.phone != null ? T.phone + '°' : '—'}${T.note ? '<br>※' + T.note : ''}<br>目安：${TILT_TH}°以上を「傾きあり」とする（仮）。右・左は本人から見た向き</span></div>`;
 
 // ── 線と測る画面
+const SVV_BIG = 5;   // ずれがとても大きい（度）。医療機関をすすめる（2026-10-28 宮崎さん：アンケートのプレゼントにするので「急なめまい・大きなズレの人へ医療機関へ」を出す。急性の前庭神経炎で約7°・延髄外側の梗塞で約9.8°＝about.html 5章。健康な人は95%が3.4°まで＝Ferreira 2016。5° はアプリの決まり）
 const SVV_TH = 2.5, SVH_TH = 1.5, SVV_N = 4, SVV_SEC = 10, SVV_TAIL = 1500, SVV_OFF = 10, GUIDE_AT = 5000, SVV_SD = 3;   // 度・回数・1回の秒数・読む長さ(ms)・合わせられていないとみて平均から外すずれ(度)・測り直しを出すばらつき(度)
 // 測り直し（2026-10-24 宮崎さん「ズレの範囲は大きく出ている気がする」→「測り直しと出す仕組みを追加して」）：1回ごとの値のばらつき（標準偏差）が SVV_SD を超えるか、合わせられた回が3回未満なら、平均はあてにならないので測り直しを出す。
 //   手持ちだとスマホと一緒に頭が傾く・始めの傾きとスマホの縁につられる、で1回ごとの値が揺れ、4回の平均では片側へのずれに見えてしまうため。3° は仮の値（講習で使って見直す）
@@ -598,27 +600,34 @@ function analyzeSvv(T) {
     return { ok: true, n: a.length, mean: r1(m), sd: r1(sd(e)), each: e, side, th, redo: sd(e) > SVV_SD || a.length < 3 }; };
   const V = one('V', SVV_TH), H = one('H', SVH_TH);
   Object.assign(RUN, { ok: V.ok || H.ok, V, H, trials: T, ended: new Date().toISOString() });
-  if (!RUN.ok) { showScreen('s1'); return note('線を合わせたところを読み取れませんでした。もう一度どうぞ'); }
+  if (!RUN.ok) { showScreen('s1'); return note(T.filter(t => t.ok && t.off).length >= 4 ? '線が大きくずれたまま止まる回が続きました。急にめまいやふらつきが出ている方は、このアプリではなく医療機関を受診してください' : '線を合わせたところを読み取れませんでした。もう一度どうぞ'); }
   const n = saveRun();
   showScreen('s2'); say('記録しました');
   $('endCust').classList.toggle('hide', STAFF); $('endCustNote').classList.toggle('hide', STAFF); $('endStaff').classList.toggle('hide', !STAFF);
   const cust = (o, nm, end, dir) => !o.ok ? `<div class="res"><b>${nm}</b>：うまく読み取れませんでした（合わせられた回 ${o.n}）</div>`
     : `<div class="res"><b>${nm}</b>：${Math.abs(o.mean) < 0.05 ? 'ずれ 0.0°' : `${end}が<b>${o.mean > 0 ? dir[0] : dir[1]}へ ${Math.abs(o.mean).toFixed(1)}°</b>`}<br>${o.redo ? `<b style="color:var(--red)">測り直してください</b>（1回ごとの値のばらつきが大きく、この平均はあてになりません）` : o.side ? `<b style="color:var(--red)">目安（${o.th}°未満）を超えるずれ</b>` : `目安（${o.th}°未満）の範囲内`}</div>`;
   const redo = (V.ok && V.redo) || (H.ok && H.redo);
+  const offN = T.filter(t => t.ok && t.off).length, ngN = T.filter(t => !t.ok).length;
+  // 意味は「どの感覚がずれていそうか」まで。SVV で測っていないこと（心の傾き・性格など）は書かない（2026-10-28 宮崎さん）
+  // 赤枠は2通り：平均が SVV_BIG 以上か、10°以上外れた回が2回以上（このときは平均が小さく見えても「ほぼそろっています」は出さない）
+  const bigMean = [V, H].some(o => o.ok && Math.abs(o.mean) >= SVV_BIG), bigOff = offN >= 2, off = [V, H].some(o => o.ok && o.side && !o.redo);
+  const mean1 = redo || bigOff ? '' : `<p>${off ? '頭の中の「まっすぐ」が、本当の重力の向きから少しずれています。「まっすぐ」は、耳の奥の重力を感じる器官を中心に、目や首・体の感覚も合わせて脳が作っています。その左右差の手がかりの一つです（これだけで、どこかは決まりません）'
+    : '頭の中の「まっすぐ」が、本当の重力の向きとほぼそろっています'}</p>`;
+  const bigBox = bigMean || bigOff ? `<div class="res" style="border-color:var(--red)"><b style="color:var(--red)">${bigMean ? 'ずれがとても大きく出ました' : `線が大きくずれたまま止まる回がありました（${offN}回。平均には入れていません）`}</b><br>強いめまい・ふらつき・吐き気・急な聞こえの変化がある方は、このアプリではなく<b>医療機関（耳鼻科・神経内科）</b>を受診してください。思い当たることがなければ、頭をまっすぐにして測り直してください</div>` : '';
+  const proLink = `<a class="btn sub" href="pro.html">プロの方へ：このズレをお客さんでどう読むか</a>`;
   $('endCust').textContent = TRAIN ? '結果（トレーニング）' : '結果';
-  $('endCustNote').innerHTML = (TRAIN ? `<p class="small">見本の線が出る前（各回の3.5〜5秒）の、自分で合わせたずれです</p>` : '') + tiltLine(RUN.tilt) + cust(V, '縦（SVV）', '線の上の端', ['右', '左']) + cust(H, '横（SVH）', '線の右の端', ['下', '上']) +
+  $('endCustNote').innerHTML = (TRAIN ? `<p class="small">見本の線が出る前（各回の3.5〜5秒）の、自分で合わせたずれです</p>` : '') + tiltLine(RUN.tilt) + cust(V, '縦（SVV）', '線の上の端', ['右', '左']) + cust(H, '横（SVH）', '線の右の端', ['下', '上']) + bigBox + mean1 +
     (redo ? `<p class="small"><b>測り直すときは</b>：頭は動かさず、スマホだけを回して合わせてください。合わせたら10秒が終わるまで止めたままにします</p>` : '') +
-    `<p class="small">同じ条件（部屋の明るさ・持ち方・頭をまっすぐ）でくり返して比べる目安です。診断ではありません。<a href="about.html">このテストについて</a></p>`;
+    `<p class="small">同じ条件（部屋の明るさ・持ち方・頭をまっすぐ）でくり返して比べる目安です。診断ではありません。急にめまいが出た方は医療機関へ。<a href="about.html">このテストについて</a></p>` + proLink;
   if (!STAFF) return;
   const row = (o, nm, end) => !o.ok ? `${nm}：読み取れず（合わせられた回 ${o.n}）` : `${nm}：平均 <b>${o.mean > 0 ? '右' : '左'}へ ${Math.abs(o.mean).toFixed(1)}°</b>（${o.each.map(e => (e > 0 ? '+' : '') + e.toFixed(1)).join('・')}・ばらつき ±${o.sd}°）${end}${o.redo ? ` <b style="color:var(--red)">→ 測り直し（ばらつき ±${SVV_SD}° 超か、合わせられた回が3回未満）</b>` : ''}`;
   const rd = (o, nm, organ, end) => o.ok && o.side && !o.redo ? `<br><b>${o.side}の耳石（${organ}寄り）</b>の働き低下の可能性 — ${nm}で${end}が${o.side}へ平均 ${Math.abs(o.mean).toFixed(1)}°（${o.th}°以上で異常）` : '';
   const jv = rd(V, '縦（SVV）', '球形嚢', '線の上の端'), jh = rd(H, '横（SVH）', '卵形嚢', '下がった端');
-  const offN = T.filter(t => t.ok && t.off).length, ngN = T.filter(t => !t.ok).length;
   $('endStaff').innerHTML = `<div class="done">結果（スタッフ用${TRAIN ? '・トレーニング' : ''}）</div>
   ${tiltLine(RUN.tilt)}<div class="res">${row(V, '縦（SVV）', '（＋＝上の端が右）')}<br>${row(H, '横（SVH）', '（＋＝右の端が下）')}${offN || ngN ? `<br><span class="small">平均から外した回：10°以上外れた ${offN}回・読み取れなかった ${ngN}回</span>` : ''}</div>
   <div class="res judge">内部の読み（仮）：${jv || jh ? jv + jh : ''}${redo ? '<br><b style="color:var(--red)">測り直し</b>（ばらつきが大きい側は読まない）' : jv || jh ? '' : '<br>縦・横とも正常の範囲'}<br><span class="small">SVV は 2.5°以上・SVH は 1.5°以上で異常。SVV は線の上の端が、SVH は下がった端が、働きの落ちた耳石の側を向く。SVV＝球形嚢寄り・SVH＝卵形嚢寄り（目安）。延髄・橋なら同じ側、小脳・中脳より上なら反対側へ傾くことが多い（Vestibular Rehabilitation 印刷頁190）。本来は暗室かバケツで周りを隠して測る。スマホだけでは周りの縦横が見えるので、数字は仮</span></div>
-  <textarea id="endText" readonly></textarea><button class="btn sub" id="bCopy">この結果をコピー</button>
-  <p class="small">この端末に残っている記録：${n}件</p>`;
+  ${bigBox}<textarea id="endText" readonly></textarea><button class="btn sub" id="bCopy">この結果をコピー</button>
+  <p class="small">この端末に残っている記録：${n}件</p>${proLink}`;
   const one2 = (o, nm) => o.ok ? `${nm} 平均${o.mean > 0 ? '右' : '左'}へ${Math.abs(o.mean).toFixed(1)}°（${o.each.map(e => (e > 0 ? '+' : '') + e.toFixed(1)).join('・')}）` : `${nm} —`;
   $('endText').value = `SVV テスト${TRAIN ? '・トレーニング' : ''}（${RUN.ended.slice(0, 16).replace('T', ' ')}）\n${one2(V, '縦（SVV）')}／${one2(H, '横（SVH）')}（＋＝時計回り＝本人の右）\n${RUN.tilt ? `首の傾き：${tiltWord(RUN.tilt.deg)}（ぶれ ±${RUN.tilt.sd}°・口角の線 ${tiltWord(RUN.tilt.mouthDeg)}・スマホの傾き ${RUN.tilt.phone ?? '—'}°）${RUN.tilt.note ? '／' + RUN.tilt.note : ''}\n` : ''}内部の読み（仮）：${[redo ? '測り直し' : '', V.ok && V.side && !V.redo ? V.side + 'の耳石（SVV）' : '', H.ok && H.side && !H.redo ? H.side + 'の耳石（SVH）' : ''].filter(Boolean).join('・') || '正常の範囲'}\n\n` + JSON.stringify(RUN);
   $('bCopy').onclick = () => copyText($('endText').value, $('bCopy'));
